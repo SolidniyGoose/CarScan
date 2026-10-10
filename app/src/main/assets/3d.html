@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Подключаем официальный 3D-движок от Google (Model Viewer) через CDN -->
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <style>
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            width: 100vw; 
+            height: 100vh; 
+            background: rgba(255, 0, 0, 0.2); /* Полупрозрачный красный фон для проверки размеров */
+            overflow: hidden; 
+        }
+        model-viewer { 
+            width: 100vw; 
+            height: 100vh; 
+            border: 5px solid lime; /* Зеленая рамка, чтобы видеть где движок */
+            --poster-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="status" style="color: yellow; position: absolute; z-index: 100; font-family: sans-serif; text-align: center; width: 100%; top: 40%;">Loading 3D Engine...</h1>
+    
+    <script>
+        window.onerror = function(msg, url, line) {
+            document.getElementById('status').innerText = 'JS Error: ' + msg;
+            document.getElementById('status').style.color = 'red';
+        };
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const mv = document.querySelector('model-viewer');
+            mv.addEventListener('load', () => {
+                document.getElementById('status').style.display = 'none';
+            });
+            mv.addEventListener('error', (e) => {
+                document.getElementById('status').innerText = 'Model Load Error';
+                document.getElementById('status').style.color = 'red';
+            });
+        });
+    </script>
+
+    <!-- Загружаем файл car.glb напрямую из официального репозитория Khronos (временно, для проверки) -->
+    <model-viewer 
+        src="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb" 
+        auto-rotate 
+        rotation-per-second="30deg"
+        camera-controls 
+        shadow-intensity="1" 
+        environment-image="neutral" 
+        exposure="1.0" 
+        auto-rotate-delay="0">
+    </model-viewer>
+</body>
+</html>
