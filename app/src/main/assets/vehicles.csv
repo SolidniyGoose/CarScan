@@ -1,0 +1,752 @@
+# Справочник автомобилей CarScan (аналог профилей Car Scanner).
+# Формат: марка;модель;поколение (годы);двигатель;объём, л;топливо;цилиндров;мощность, л.с.;бак, л
+# Топливо: P — бензин, D — дизель, H — гибрид (бензин).
+# Данные собраны по открытым техническим характеристикам. Объём бака у разных рынков и комплектаций
+# может отличаться — в приложении (… → Автомобиль) его, объём двигателя и тип топлива можно поправить вручную.
+# Чтобы добавить машину, допишите строку в этом формате.
+
+Audi;A3;8V (2012–2020);1.4 TFSI;1.4;P;4;125;50
+Audi;A3;8V (2012–2020);1.4 TFSI;1.4;P;4;150;50
+Audi;A3;8V (2012–2020);1.8 TFSI;1.8;P;4;180;50
+Audi;A4;B8 (2007–2015);1.8 TFSI;1.8;P;4;160;65
+Audi;A4;B8 (2007–2015);2.0 TFSI;2.0;P;4;211;65
+Audi;A4;B8 (2007–2015);2.0 TDI;2.0;D;4;143;65
+Audi;A4;B9 (2015–);1.4 TFSI;1.4;P;4;150;54
+Audi;A4;B9 (2015–);2.0 TFSI;2.0;P;4;190;54
+Audi;A4;B9 (2015–);2.0 TFSI quattro;2.0;P;4;249;58
+Audi;A6;C7 (2011–2018);2.0 TFSI;2.0;P;4;180;75
+Audi;A6;C7 (2011–2018);3.0 TFSI quattro;3.0;P;6;333;75
+Audi;A6;C7 (2011–2018);3.0 TDI quattro;3.0;D;6;249;65
+Audi;A6;C8 (2018–);2.0 TFSI;2.0;P;4;245;63
+Audi;A6;C8 (2018–);3.0 TFSI quattro;3.0;P;6;340;73
+Audi;A6;C8 (2018–);3.0 TDI quattro;3.0;D;6;249;63
+Audi;Q3;F3 (2018–);1.4 TFSI;1.4;P;4;150;60
+Audi;Q3;F3 (2018–);2.0 TFSI quattro;2.0;P;4;180;60
+Audi;Q5;8R (2008–2017);2.0 TFSI quattro;2.0;P;4;225;75
+Audi;Q5;8R (2008–2017);3.0 TDI quattro;3.0;D;6;245;75
+Audi;Q5;FY (2017–);2.0 TFSI quattro;2.0;P;4;249;70
+Audi;Q5;FY (2017–);2.0 TDI quattro;2.0;D;4;190;70
+Audi;Q7;4L (2005–2015);3.6 FSI;3.6;P;6;280;100
+Audi;Q7;4L (2005–2015);3.0 TDI;3.0;D;6;240;100
+Audi;Q7;4M (2015–);3.0 TFSI;3.0;P;6;340;85
+Audi;Q7;4M (2015–);3.0 TDI;3.0;D;6;249;75
+Audi;Q8;4M (2018–);3.0 TFSI;3.0;P;6;340;85
+Audi;Q8;4M (2018–);3.0 TDI;3.0;D;6;249;75
+
+BMW;1 серия;F20 (2011–2019);116i 1.6;1.6;P;4;136;52
+BMW;1 серия;F20 (2011–2019);118i 1.5;1.5;P;3;136;52
+BMW;3 серия;E90 (2005–2012);320i 2.0;2.0;P;4;150;60
+BMW;3 серия;E90 (2005–2012);325i 2.5;2.5;P;6;218;60
+BMW;3 серия;E90 (2005–2012);320d 2.0;2.0;D;4;177;60
+BMW;3 серия;F30 (2011–2019);320i 2.0;2.0;P;4;184;60
+BMW;3 серия;F30 (2011–2019);328i 2.0;2.0;P;4;245;60
+BMW;3 серия;F30 (2011–2019);335i 3.0;3.0;P;6;306;60
+BMW;3 серия;F30 (2011–2019);320d 2.0;2.0;D;4;190;57
+BMW;3 серия;G20 (2018–);320i 2.0;2.0;P;4;184;59
+BMW;3 серия;G20 (2018–);330i 2.0;2.0;P;4;258;59
+BMW;3 серия;G20 (2018–);M340i 3.0;3.0;P;6;387;59
+BMW;3 серия;G20 (2018–);320d 2.0;2.0;D;4;190;59
+BMW;5 серия;F10 (2009–2017);520i 2.0;2.0;P;4;184;70
+BMW;5 серия;F10 (2009–2017);528i 2.0;2.0;P;4;245;70
+BMW;5 серия;F10 (2009–2017);535i 3.0;3.0;P;6;306;70
+BMW;5 серия;F10 (2009–2017);520d 2.0;2.0;D;4;190;70
+BMW;5 серия;F10 (2009–2017);530d 3.0;3.0;D;6;258;70
+BMW;5 серия;G30 (2017–2023);520i 2.0;2.0;P;4;184;68
+BMW;5 серия;G30 (2017–2023);530i 2.0;2.0;P;4;249;68
+BMW;5 серия;G30 (2017–2023);540i 3.0;3.0;P;6;340;68
+BMW;5 серия;G30 (2017–2023);520d 2.0;2.0;D;4;190;66
+BMW;5 серия;G30 (2017–2023);530d 3.0;3.0;D;6;249;66
+BMW;7 серия;G11/G12 (2015–2022);730Li 2.0;2.0;P;4;258;78
+BMW;7 серия;G11/G12 (2015–2022);740Li 3.0;3.0;P;6;340;78
+BMW;7 серия;G11/G12 (2015–2022);750Li 4.4;4.4;P;8;530;78
+BMW;7 серия;G11/G12 (2015–2022);730Ld 3.0;3.0;D;6;249;78
+BMW;X1;F48 (2015–2022);sDrive18i 1.5;1.5;P;3;136;51
+BMW;X1;F48 (2015–2022);xDrive20i 2.0;2.0;P;4;192;61
+BMW;X1;F48 (2015–2022);xDrive20d 2.0;2.0;D;4;190;51
+BMW;X3;F25 (2010–2017);xDrive20i 2.0;2.0;P;4;184;67
+BMW;X3;F25 (2010–2017);xDrive28i 2.0;2.0;P;4;245;67
+BMW;X3;F25 (2010–2017);xDrive35i 3.0;3.0;P;6;306;67
+BMW;X3;F25 (2010–2017);xDrive20d 2.0;2.0;D;4;190;67
+BMW;X3;F25 (2010–2017);xDrive30d 3.0;3.0;D;6;258;67
+BMW;X3;G01 (2017–2024);xDrive20i 2.0;2.0;P;4;184;65
+BMW;X3;G01 (2017–2024);xDrive30i 2.0;2.0;P;4;249;65
+BMW;X3;G01 (2017–2024);M40i 3.0;3.0;P;6;387;65
+BMW;X3;G01 (2017–2024);xDrive20d 2.0;2.0;D;4;190;68
+BMW;X3;G01 (2017–2024);xDrive30d 3.0;3.0;D;6;249;68
+BMW;X5;E70 (2006–2013);xDrive30i 3.0;3.0;P;6;272;85
+BMW;X5;E70 (2006–2013);xDrive50i 4.4;4.4;P;8;407;85
+BMW;X5;E70 (2006–2013);xDrive30d 3.0;3.0;D;6;245;85
+BMW;X5;F15 (2013–2018);xDrive35i 3.0;3.0;P;6;306;85
+BMW;X5;F15 (2013–2018);xDrive50i 4.4;4.4;P;8;450;85
+BMW;X5;F15 (2013–2018);xDrive30d 3.0;3.0;D;6;249;85
+BMW;X5;F15 (2013–2018);xDrive40d 3.0;3.0;D;6;313;85
+BMW;X5;G05 (2018–);xDrive40i 3.0;3.0;P;6;340;83
+BMW;X5;G05 (2018–);M50i 4.4;4.4;P;8;530;83
+BMW;X5;G05 (2018–);xDrive30d 3.0;3.0;D;6;249;80
+BMW;X5;G05 (2018–);M50d 3.0;3.0;D;6;400;80
+BMW;X6;F16 (2014–2019);xDrive35i 3.0;3.0;P;6;306;85
+BMW;X6;F16 (2014–2019);xDrive30d 3.0;3.0;D;6;249;85
+BMW;X6;G06 (2019–);xDrive40i 3.0;3.0;P;6;340;83
+BMW;X6;G06 (2019–);xDrive30d 3.0;3.0;D;6;249;80
+BMW;X7;G07 (2019–);xDrive40i 3.0;3.0;P;6;340;83
+BMW;X7;G07 (2019–);M50i 4.4;4.4;P;8;530;83
+BMW;X7;G07 (2019–);xDrive30d 3.0;3.0;D;6;249;80
+
+Cadillac;Escalade;IV (2014–2020);6.2 V8;6.2;P;8;409;98
+Cadillac;Escalade;V (2020–);6.2 V8;6.2;P;8;426;91
+
+Changan;CS35 Plus;I (2019–);1.4T;1.4;P;4;150;52
+Changan;CS35 Plus;I (2019–);1.6;1.6;P;4;125;52
+Changan;CS55 Plus;II (2021–);1.5T;1.5;P;4;150;55
+Changan;CS75 Plus;I (2020–);1.5T;1.5;P;4;178;58
+Changan;CS75 Plus;I (2020–);2.0T;2.0;P;4;233;58
+Changan;UNI-K;I (2021–);2.0T;2.0;P;4;226;60
+Changan;UNI-V;I (2022–);1.5T;1.5;P;4;171;53
+
+Chery;Tiggo 4 Pro;I (2021–);1.5;1.5;P;4;113;51
+Chery;Tiggo 4 Pro;I (2021–);1.5T;1.5;P;4;147;51
+Chery;Tiggo 7 Pro;I (2020–);1.5T;1.5;P;4;147;51
+Chery;Tiggo 7 Pro Max;I (2022–);1.5T;1.5;P;4;147;51
+Chery;Tiggo 7 Pro Max;I (2022–);1.6T;1.6;P;4;186;51
+Chery;Tiggo 8 Pro;I (2021–);1.6T;1.6;P;4;186;51
+Chery;Tiggo 8 Pro;I (2021–);2.0T;2.0;P;4;197;51
+Chery;Tiggo 8 Pro Max;I (2022–);2.0T;2.0;P;4;197;57
+
+Chevrolet;Aveo;T300 (2011–2015);1.6;1.6;P;4;115;46
+Chevrolet;Captiva;C100/C140 (2006–2016);2.4;2.4;P;4;167;65
+Chevrolet;Captiva;C100/C140 (2006–2016);3.0 V6;3.0;P;6;249;65
+Chevrolet;Captiva;C100/C140 (2006–2016);2.2 D;2.2;D;4;184;65
+Chevrolet;Cobalt;II (2013–2020);1.5;1.5;P;4;105;46
+Chevrolet;Cruze;J300 (2009–2015);1.6;1.6;P;4;109;60
+Chevrolet;Cruze;J300 (2009–2015);1.8;1.8;P;4;141;60
+Chevrolet;Cruze;J300 (2009–2015);1.4T;1.4;P;4;140;60
+Chevrolet;Lacetti;J200 (2004–2013);1.4;1.4;P;4;95;60
+Chevrolet;Lacetti;J200 (2004–2013);1.6;1.6;P;4;109;60
+Chevrolet;Lacetti;J200 (2004–2013);1.8;1.8;P;4;121;60
+Chevrolet;Lanos;T100 (2005–2009);1.5;1.5;P;4;86;48
+Chevrolet;Niva;2123 (2002–2020);1.7;1.7;P;4;80;58
+Chevrolet;Orlando;J309 (2011–2015);1.8;1.8;P;4;141;64
+Chevrolet;Spark;M300 (2010–2015);1.0;1.0;P;4;68;35
+Chevrolet;Tahoe;GMT900 (2006–2014);5.3 V8;5.3;P;8;320;98
+Chevrolet;Tahoe;K2UC (2014–2020);6.2 V8;6.2;P;8;409;98
+Chevrolet;Tahoe;K2UC (2014–2020);5.3 V8;5.3;P;8;355;98
+Chevrolet;Trailblazer;II (2012–2016);2.8 D;2.8;D;4;180;76
+Chevrolet;Trailblazer;II (2012–2016);3.6 V6;3.6;P;6;239;76
+
+Citroën;C4;II (2011–2022);1.6;1.6;P;4;120;60
+Citroën;C4;II (2011–2022);1.6 THP;1.6;P;4;150;60
+Citroën;C5 Aircross;I (2017–);1.6 THP;1.6;P;4;150;53
+Citroën;C5 Aircross;I (2017–);2.0 HDi;2.0;D;4;150;53
+
+Daewoo;Gentra;II (2013–2016);1.5;1.5;P;4;107;60
+Daewoo;Matiz;M150 (2000–2015);0.8;0.8;P;3;51;35
+Daewoo;Matiz;M150 (2000–2015);1.0;1.0;P;4;64;35
+Daewoo;Nexia;N150 (2008–2016);1.5 8V;1.5;P;4;80;48
+Daewoo;Nexia;N150 (2008–2016);1.6 16V;1.6;P;4;109;48
+
+Datsun;mi-DO;I (2015–2020);1.6 8V;1.6;P;4;87;50
+Datsun;on-DO;I (2014–2020);1.6 8V;1.6;P;4;87;50
+Datsun;on-DO;I (2014–2020);1.6 16V;1.6;P;4;106;50
+
+Exeed;LX;I (2021–);1.5T;1.5;P;4;147;51
+Exeed;LX;I (2021–);1.6T;1.6;P;4;186;51
+Exeed;TXL;I (2020–);1.6T;1.6;P;4;186;55
+Exeed;TXL;I (2020–);2.0T;2.0;P;4;197;55
+Exeed;VX;I (2021–);2.0T;2.0;P;4;249;65
+
+Ford;EcoSport;II (2014–2019);1.6;1.6;P;4;122;52
+Ford;EcoSport;II (2014–2019);2.0;2.0;P;4;140;52
+Ford;Explorer;V (2010–2019);3.5 V6;3.5;P;6;249;70
+Ford;Explorer;V (2010–2019);3.5 EcoBoost;3.5;P;6;345;70
+Ford;Fiesta;VI (2008–2019);1.6;1.6;P;4;105;42
+Ford;Focus;II (2004–2011);1.6;1.6;P;4;100;55
+Ford;Focus;II (2004–2011);1.8;1.8;P;4;125;55
+Ford;Focus;II (2004–2011);2.0;2.0;P;4;145;55
+Ford;Focus;III (2011–2019);1.6;1.6;P;4;105;55
+Ford;Focus;III (2011–2019);1.6;1.6;P;4;125;55
+Ford;Focus;III (2011–2019);2.0;2.0;P;4;150;55
+Ford;Focus;III (2011–2019);1.5 EcoBoost;1.5;P;4;150;55
+Ford;Kuga;II (2012–2019);1.5 EcoBoost;1.5;P;4;150;60
+Ford;Kuga;II (2012–2019);1.5 EcoBoost;1.5;P;4;182;60
+Ford;Kuga;II (2012–2019);2.5;2.5;P;4;150;60
+Ford;Kuga;II (2012–2019);2.0 TDCi;2.0;D;4;140;60
+Ford;Mondeo;IV (2007–2014);1.6;1.6;P;4;125;70
+Ford;Mondeo;IV (2007–2014);2.0;2.0;P;4;145;70
+Ford;Mondeo;IV (2007–2014);2.3;2.3;P;4;161;70
+Ford;Mondeo;IV (2007–2014);2.0 EcoBoost;2.0;P;4;240;70
+Ford;Mondeo;V (2014–2022);2.5;2.5;P;4;149;62
+Ford;Mondeo;V (2014–2022);2.0 EcoBoost;2.0;P;4;240;62
+Ford;Transit;VIII (2014–);2.2 TDCi;2.2;D;4;125;80
+Ford;Transit;VIII (2014–);2.2 TDCi;2.2;D;4;155;80
+
+GAZ;Газель Бизнес;3302 (2010–);2.9 УМЗ-4216;2.9;P;4;107;64
+GAZ;Газель Бизнес;3302 (2010–);2.8 Cummins ISF;2.8;D;4;120;64
+GAZ;Газель Next;A21 (2013–);2.7 Evotech;2.7;P;4;107;64
+GAZ;Газель Next;A21 (2013–);2.8 Cummins ISF;2.8;D;4;149;64
+GAZ;Соболь Бизнес;2752 (2010–);2.9 УМЗ-4216;2.9;P;4;107;64
+
+Geely;Atlas;I (2018–2022);2.0;2.0;P;4;139;60
+Geely;Atlas;I (2018–2022);2.4;2.4;P;4;148;60
+Geely;Atlas Pro;I (2021–);1.5T;1.5;H;3;177;55
+Geely;Coolray;I (2019–);1.5T;1.5;P;3;150;45
+Geely;Coolray;I (2019–);1.5T;1.5;P;3;177;45
+Geely;Emgrand EC7;I (2009–2016);1.5;1.5;P;4;102;50
+Geely;Emgrand EC7;I (2009–2016);1.8;1.8;P;4;126;50
+Geely;Emgrand;IV (2023–);1.5;1.5;P;4;122;50
+Geely;Monjaro;I (2022–);2.0T;2.0;P;4;238;62
+Geely;Tugella;I (2020–);2.0T;2.0;P;4;238;54
+
+Genesis;G80;II (2020–);2.5T;2.5;P;4;249;73
+Genesis;GV80;I (2020–);2.5T;2.5;P;4;249;80
+Genesis;GV80;I (2020–);3.5T;3.5;P;6;380;80
+Genesis;GV80;I (2020–);3.0 D;3.0;D;6;249;80
+
+Haval;Dargo;I (2022–);2.0T;2.0;P;4;192;63
+Haval;F7;I (2019–);1.5T;1.5;P;4;150;55
+Haval;F7;I (2019–);2.0T;2.0;P;4;190;55
+Haval;F7x;I (2019–);1.5T;1.5;P;4;150;55
+Haval;F7x;I (2019–);2.0T;2.0;P;4;190;55
+Haval;H6;II (2017–2020);1.5T;1.5;P;4;150;58
+Haval;H9;I (2014–);2.0T;2.0;P;4;218;80
+Haval;H9;I (2014–);2.0 D;2.0;D;4;190;80
+Haval;Jolion;I (2020–);1.5T;1.5;P;4;143;55
+Haval;Jolion;I (2020–);1.5T;1.5;P;4;150;55
+Haval;M6;I (2021–);1.5T;1.5;P;4;143;58
+
+Honda;Accord;IX (2012–2017);2.4;2.4;P;4;180;65
+Honda;Accord;IX (2012–2017);3.5 V6;3.5;P;6;281;65
+Honda;Civic;IX (2011–2016);1.8;1.8;P;4;141;50
+Honda;Civic;X (2015–2021);1.5T;1.5;P;4;182;47
+Honda;Civic;X (2015–2021);2.0;2.0;P;4;158;47
+Honda;CR-V;IV (2012–2018);2.0;2.0;P;4;150;58
+Honda;CR-V;IV (2012–2018);2.4;2.4;P;4;190;58
+Honda;CR-V;V (2016–2023);1.5T;1.5;P;4;190;57
+Honda;CR-V;V (2016–2023);2.0;2.0;P;4;150;57
+Honda;CR-V;V (2016–2023);2.4;2.4;P;4;186;57
+Honda;Jazz;III (2014–2020);1.3;1.3;P;4;102;40
+Honda;Pilot;III (2015–2022);3.0 V6;3.0;P;6;249;73
+Honda;Pilot;III (2015–2022);3.5 V6;3.5;P;6;280;73
+
+Hyundai;Creta;I (2016–2021);1.6;1.6;P;4;123;55
+Hyundai;Creta;I (2016–2021);2.0;2.0;P;4;149;55
+Hyundai;Creta;II (2021–);1.6;1.6;P;4;123;50
+Hyundai;Creta;II (2021–);2.0;2.0;P;4;149;50
+Hyundai;Elantra;MD (2010–2016);1.6;1.6;P;4;132;50
+Hyundai;Elantra;MD (2010–2016);1.8;1.8;P;4;150;50
+Hyundai;Elantra;AD (2016–2020);1.6;1.6;P;4;128;50
+Hyundai;Elantra;AD (2016–2020);2.0;2.0;P;4;150;50
+Hyundai;Elantra;CN7 (2020–);1.6;1.6;P;4;128;47
+Hyundai;Elantra;CN7 (2020–);2.0;2.0;P;4;150;47
+Hyundai;i30;III (2017–);1.4;1.4;P;4;100;50
+Hyundai;i30;III (2017–);1.6;1.6;P;4;128;50
+Hyundai;ix35;LM (2010–2015);2.0;2.0;P;4;150;58
+Hyundai;ix35;LM (2010–2015);2.0 CRDi;2.0;D;4;184;58
+Hyundai;Palisade;I (2018–);3.5 V6;3.5;P;6;249;71
+Hyundai;Palisade;I (2018–);2.2 CRDi;2.2;D;4;200;71
+Hyundai;Santa Fe;DM (2012–2018);2.4;2.4;P;4;175;64
+Hyundai;Santa Fe;DM (2012–2018);2.2 CRDi;2.2;D;4;197;64
+Hyundai;Santa Fe;TM (2018–2023);2.4;2.4;P;4;188;71
+Hyundai;Santa Fe;TM (2018–2023);3.5 V6;3.5;P;6;249;71
+Hyundai;Santa Fe;TM (2018–2023);2.2 CRDi;2.2;D;4;200;71
+Hyundai;Solaris;RB (2010–2017);1.4;1.4;P;4;107;43
+Hyundai;Solaris;RB (2010–2017);1.6;1.6;P;4;123;43
+Hyundai;Solaris;HCR (2017–2022);1.4;1.4;P;4;100;50
+Hyundai;Solaris;HCR (2017–2022);1.6;1.6;P;4;123;50
+Hyundai;Sonata;LF (2014–2019);2.0;2.0;P;4;150;70
+Hyundai;Sonata;LF (2014–2019);2.4;2.4;P;4;188;70
+Hyundai;Sonata;DN8 (2019–);2.0;2.0;P;4;150;60
+Hyundai;Sonata;DN8 (2019–);2.5;2.5;P;4;180;60
+Hyundai;Tucson;TL (2015–2021);2.0;2.0;P;4;150;62
+Hyundai;Tucson;TL (2015–2021);2.4;2.4;P;4;184;62
+Hyundai;Tucson;TL (2015–2021);1.6 T-GDI;1.6;P;4;177;62
+Hyundai;Tucson;TL (2015–2021);2.0 CRDi;2.0;D;4;185;62
+Hyundai;Tucson;NX4 (2020–);2.0;2.0;P;4;150;54
+Hyundai;Tucson;NX4 (2020–);2.5;2.5;P;4;190;54
+Hyundai;Tucson;NX4 (2020–);2.0 CRDi;2.0;D;4;186;54
+
+Infiniti;FX;S51 (2008–2013);FX35 3.5 V6;3.5;P;6;307;90
+Infiniti;FX;S51 (2008–2013);FX37 3.7 V6;3.7;P;6;333;90
+Infiniti;QX50;J55 (2017–);2.0 VC-Turbo;2.0;P;4;249;60
+Infiniti;QX60;L50 (2013–2020);3.5 V6;3.5;P;6;262;74
+Infiniti;QX70;S51 (2013–2017);3.7 V6;3.7;P;6;333;90
+Infiniti;QX80;Z62 (2010–);5.6 V8;5.6;P;8;405;100
+
+Jeep;Grand Cherokee;WK2 (2010–2021);3.6 V6;3.6;P;6;286;93
+Jeep;Grand Cherokee;WK2 (2010–2021);5.7 V8;5.7;P;8;352;93
+Jeep;Grand Cherokee;WK2 (2010–2021);3.0 CRD;3.0;D;6;250;93
+Jeep;Wrangler;JL (2018–);2.0T;2.0;P;4;272;81
+Jeep;Wrangler;JL (2018–);3.6 V6;3.6;P;6;284;81
+
+Kia;Carnival;KA4 (2020–);3.5 V6;3.5;P;6;249;72
+Kia;Carnival;KA4 (2020–);2.2 CRDi;2.2;D;4;199;72
+Kia;Ceed;JD (2012–2018);1.4;1.4;P;4;100;53
+Kia;Ceed;JD (2012–2018);1.6;1.6;P;4;129;53
+Kia;Ceed;CD (2018–);1.4 MPI;1.4;P;4;100;50
+Kia;Ceed;CD (2018–);1.6 MPI;1.6;P;4;128;50
+Kia;Ceed;CD (2018–);1.4 T-GDI;1.4;P;4;140;50
+Kia;Cerato;YD (2013–2018);1.6;1.6;P;4;130;50
+Kia;Cerato;YD (2013–2018);2.0;2.0;P;4;150;50
+Kia;Cerato;BD (2018–);1.6;1.6;P;4;128;50
+Kia;Cerato;BD (2018–);2.0;2.0;P;4;150;50
+Kia;K5;DL3 (2020–);2.0;2.0;P;4;150;60
+Kia;K5;DL3 (2020–);2.5;2.5;P;4;194;60
+Kia;Mohave;HM (2008–);3.0 CRDi V6;3.0;D;6;250;82
+Kia;Optima;JF (2015–2020);2.0;2.0;P;4;150;70
+Kia;Optima;JF (2015–2020);2.4;2.4;P;4;188;70
+Kia;Optima;JF (2015–2020);2.0 T-GDI;2.0;P;4;245;70
+Kia;Picanto;JA (2017–);1.0;1.0;P;3;67;35
+Kia;Picanto;JA (2017–);1.2;1.2;P;4;84;35
+Kia;Rio;QB (2011–2017);1.4;1.4;P;4;107;43
+Kia;Rio;QB (2011–2017);1.6;1.6;P;4;123;43
+Kia;Rio;FB (2017–2023);1.4;1.4;P;4;100;50
+Kia;Rio;FB (2017–2023);1.6;1.6;P;4;123;50
+Kia;Rio X;FB (2017–);1.4;1.4;P;4;100;50
+Kia;Rio X;FB (2017–);1.6;1.6;P;4;123;50
+Kia;Seltos;SP2 (2019–);1.6;1.6;P;4;123;50
+Kia;Seltos;SP2 (2019–);2.0;2.0;P;4;149;50
+Kia;Sorento;XM (2009–2014);2.4;2.4;P;4;175;64
+Kia;Sorento;XM (2009–2014);2.2 CRDi;2.2;D;4;197;64
+Kia;Sorento;UM Prime (2015–2020);2.4;2.4;P;4;188;71
+Kia;Sorento;UM Prime (2015–2020);3.5 V6;3.5;P;6;249;71
+Kia;Sorento;UM Prime (2015–2020);2.2 CRDi;2.2;D;4;200;71
+Kia;Sorento;MQ4 (2020–);2.5;2.5;P;4;180;67
+Kia;Sorento;MQ4 (2020–);3.5 V6;3.5;P;6;249;67
+Kia;Sorento;MQ4 (2020–);2.2 CRDi;2.2;D;4;199;67
+Kia;Soul;SK3 (2019–);1.6;1.6;P;4;128;54
+Kia;Soul;SK3 (2019–);2.0;2.0;P;4;150;54
+Kia;Sportage;SL (2010–2016);2.0;2.0;P;4;150;58
+Kia;Sportage;SL (2010–2016);2.0 CRDi;2.0;D;4;184;58
+Kia;Sportage;QL (2016–2021);2.0;2.0;P;4;150;62
+Kia;Sportage;QL (2016–2021);2.4;2.4;P;4;184;62
+Kia;Sportage;QL (2016–2021);1.6 T-GDI;1.6;P;4;177;62
+Kia;Sportage;QL (2016–2021);2.0 CRDi;2.0;D;4;185;62
+Kia;Sportage;NQ5 (2021–);2.0;2.0;P;4;150;54
+Kia;Sportage;NQ5 (2021–);2.5;2.5;P;4;190;54
+
+Lada;2114;Samara (2001–2013);1.6 8V;1.6;P;4;81;43
+Lada;Granta;2190 (2011–2018);1.6 8V;1.6;P;4;87;50
+Lada;Granta;2190 (2011–2018);1.6 16V;1.6;P;4;98;50
+Lada;Granta;2190 (2011–2018);1.6 16V;1.6;P;4;106;50
+Lada;Granta;FL (2018–);1.6 8V;1.6;P;4;90;50
+Lada;Granta;FL (2018–);1.6 16V;1.6;P;4;98;50
+Lada;Granta;FL (2018–);1.6 16V;1.6;P;4;106;50
+Lada;Kalina;II (2013–2018);1.6 8V;1.6;P;4;87;50
+Lada;Kalina;II (2013–2018);1.6 16V;1.6;P;4;106;50
+Lada;Largus;I (2012–);1.6 8V;1.6;P;4;87;50
+Lada;Largus;I (2012–);1.6 16V;1.6;P;4;106;50
+Lada;Niva Legend;2121 (2021–);1.7;1.7;P;4;83;42
+Lada;Niva Travel;2123 (2021–);1.7;1.7;P;4;80;58
+Lada;Priora;2170 (2007–2018);1.6 16V;1.6;P;4;98;43
+Lada;Priora;2170 (2007–2018);1.6 16V;1.6;P;4;106;43
+Lada;Vesta;I (2015–2022);1.6 16V;1.6;P;4;106;55
+Lada;Vesta;I (2015–2022);1.8 16V;1.8;P;4;122;55
+Lada;Vesta;NG (2022–);1.6 16V;1.6;P;4;106;55
+Lada;Vesta;NG (2022–);1.8 Evo;1.8;P;4;122;55
+Lada;XRAY;I (2015–2022);1.6 16V;1.6;P;4;106;50
+Lada;XRAY;I (2015–2022);1.8 16V;1.8;P;4;122;50
+
+Land Rover;Discovery;5 (2016–);2.0 Si4;2.0;P;4;300;89
+Land Rover;Discovery;5 (2016–);3.0 Si6;3.0;P;6;340;89
+Land Rover;Discovery;5 (2016–);3.0 TD6;3.0;D;6;258;77
+Land Rover;Discovery Sport;L550 (2014–);2.0 Si4;2.0;P;4;240;70
+Land Rover;Discovery Sport;L550 (2014–);2.0 TD4;2.0;D;4;180;65
+Land Rover;Range Rover;L405 (2012–2021);3.0 V6 S/C;3.0;P;6;340;105
+Land Rover;Range Rover;L405 (2012–2021);5.0 V8 S/C;5.0;P;8;510;105
+Land Rover;Range Rover;L405 (2012–2021);3.0 TDV6;3.0;D;6;249;86
+Land Rover;Range Rover;L405 (2012–2021);4.4 SDV8;4.4;D;8;339;86
+Land Rover;Range Rover Evoque;L538 (2011–2018);2.0 Si4;2.0;P;4;240;70
+Land Rover;Range Rover Evoque;L538 (2011–2018);2.2 SD4;2.2;D;4;190;60
+Land Rover;Range Rover Sport;L494 (2013–2022);3.0 V6 S/C;3.0;P;6;340;105
+Land Rover;Range Rover Sport;L494 (2013–2022);5.0 V8 S/C;5.0;P;8;510;105
+Land Rover;Range Rover Sport;L494 (2013–2022);3.0 TDV6;3.0;D;6;249;77
+Land Rover;Range Rover Sport;L494 (2013–2022);3.0 SDV6;3.0;D;6;306;77
+
+Lexus;ES;XZ10 (2018–);2.0;2.0;P;4;150;60
+Lexus;ES;XZ10 (2018–);2.5;2.5;P;4;200;60
+Lexus;ES;XZ10 (2018–);3.5 V6;3.5;P;6;249;60
+Lexus;GX;460 (2009–2023);4.6 V8;4.6;P;8;296;87
+Lexus;LX;570 (2007–2021);5.7 V8;5.7;P;8;367;93
+Lexus;LX;600 (2021–);3.5 V6 Twin Turbo;3.5;P;6;409;80
+Lexus;NX;AZ10 (2014–2021);200 2.0;2.0;P;4;150;60
+Lexus;NX;AZ10 (2014–2021);200t 2.0T;2.0;P;4;238;60
+Lexus;NX;AZ10 (2014–2021);300h 2.5;2.5;H;4;197;56
+Lexus;RX;AL10 (2008–2015);350 3.5 V6;3.5;P;6;277;72
+Lexus;RX;AL10 (2008–2015);450h 3.5;3.5;H;6;299;65
+Lexus;RX;AL20 (2015–2022);200t 2.0T;2.0;P;4;238;72
+Lexus;RX;AL20 (2015–2022);350 3.5 V6;3.5;P;6;300;72
+Lexus;RX;AL20 (2015–2022);450h 3.5;3.5;H;6;313;65
+
+Mazda;3;BL (2009–2013);1.6;1.6;P;4;105;55
+Mazda;3;BL (2009–2013);2.0;2.0;P;4;150;55
+Mazda;3;BM (2013–2019);1.5;1.5;P;4;120;51
+Mazda;3;BM (2013–2019);2.0;2.0;P;4;150;51
+Mazda;3;BP (2019–);1.5;1.5;P;4;120;51
+Mazda;3;BP (2019–);2.0;2.0;P;4;150;51
+Mazda;6;GH (2007–2012);1.8;1.8;P;4;120;64
+Mazda;6;GH (2007–2012);2.0;2.0;P;4;147;64
+Mazda;6;GH (2007–2012);2.5;2.5;P;4;170;64
+Mazda;6;GJ (2012–);2.0;2.0;P;4;150;62
+Mazda;6;GJ (2012–);2.5;2.5;P;4;192;62
+Mazda;6;GJ (2012–);2.5T;2.5;P;4;231;62
+Mazda;CX-30;DM (2019–);2.0;2.0;P;4;150;51
+Mazda;CX-5;KE (2011–2017);2.0;2.0;P;4;150;56
+Mazda;CX-5;KE (2011–2017);2.5;2.5;P;4;192;58
+Mazda;CX-5;KE (2011–2017);2.2 D;2.2;D;4;175;58
+Mazda;CX-5;KF (2017–);2.0;2.0;P;4;150;56
+Mazda;CX-5;KF (2017–);2.5;2.5;P;4;194;58
+Mazda;CX-5;KF (2017–);2.5T;2.5;P;4;231;58
+Mazda;CX-9;TC (2016–2023);2.5T;2.5;P;4;231;72
+
+Mercedes-Benz;A-класс;W177 (2018–);A200 1.3;1.3;P;4;163;43
+Mercedes-Benz;C-класс;W204 (2007–2014);C180 1.6;1.6;P;4;156;66
+Mercedes-Benz;C-класс;W204 (2007–2014);C200 1.8;1.8;P;4;184;66
+Mercedes-Benz;C-класс;W204 (2007–2014);C250 1.8;1.8;P;4;204;66
+Mercedes-Benz;C-класс;W204 (2007–2014);C350 3.5 V6;3.5;P;6;306;66
+Mercedes-Benz;C-класс;W205 (2014–2021);C180 1.6;1.6;P;4;150;66
+Mercedes-Benz;C-класс;W205 (2014–2021);C200 2.0;2.0;P;4;184;66
+Mercedes-Benz;C-класс;W205 (2014–2021);C300 2.0;2.0;P;4;245;66
+Mercedes-Benz;C-класс;W205 (2014–2021);C43 AMG 3.0;3.0;P;6;390;66
+Mercedes-Benz;C-класс;W205 (2014–2021);C220d 2.0;2.0;D;4;194;66
+Mercedes-Benz;C-класс;W206 (2021–);C200 1.5;1.5;P;4;204;66
+Mercedes-Benz;C-класс;W206 (2021–);C300 2.0;2.0;P;4;258;66
+Mercedes-Benz;CLA;C117 (2013–2019);CLA 200 1.6;1.6;P;4;156;56
+Mercedes-Benz;CLA;C117 (2013–2019);CLA 250 2.0;2.0;P;4;211;56
+Mercedes-Benz;E-класс;W212 (2009–2016);E200 2.0;2.0;P;4;184;80
+Mercedes-Benz;E-класс;W212 (2009–2016);E250 2.0;2.0;P;4;211;80
+Mercedes-Benz;E-класс;W212 (2009–2016);E350 3.5 V6;3.5;P;6;306;80
+Mercedes-Benz;E-класс;W212 (2009–2016);E250 CDI 2.1;2.1;D;4;204;80
+Mercedes-Benz;E-класс;W212 (2009–2016);E350 BlueTEC 3.0;3.0;D;6;252;80
+Mercedes-Benz;E-класс;W213 (2016–2023);E200 2.0;2.0;P;4;197;66
+Mercedes-Benz;E-класс;W213 (2016–2023);E300 2.0;2.0;P;4;249;66
+Mercedes-Benz;E-класс;W213 (2016–2023);E450 3.0;3.0;P;6;367;66
+Mercedes-Benz;E-класс;W213 (2016–2023);E220d 2.0;2.0;D;4;194;66
+Mercedes-Benz;E-класс;W213 (2016–2023);E350d 3.0;3.0;D;6;249;66
+Mercedes-Benz;G-класс;W463 (1990–2018);G500 5.5 V8;5.5;P;8;388;96
+Mercedes-Benz;G-класс;W463 (1990–2018);G350d 3.0;3.0;D;6;245;96
+Mercedes-Benz;G-класс;W463A (2018–);G500 4.0 V8;4.0;P;8;422;100
+Mercedes-Benz;G-класс;W463A (2018–);G63 AMG 4.0 V8;4.0;P;8;585;100
+Mercedes-Benz;G-класс;W463A (2018–);G350d 2.9;2.9;D;6;249;100
+Mercedes-Benz;G-класс;W463A (2018–);G400d 2.9;2.9;D;6;330;100
+Mercedes-Benz;GL;X166 (2012–2015);GL400 3.0 V6;3.0;P;6;333;100
+Mercedes-Benz;GL;X166 (2012–2015);GL500 4.7 V8;4.7;P;8;435;100
+Mercedes-Benz;GL;X166 (2012–2015);GL350 BlueTEC 3.0;3.0;D;6;249;100
+Mercedes-Benz;GLA;X156 (2013–2019);GLA 200 1.6;1.6;P;4;156;56
+Mercedes-Benz;GLA;X156 (2013–2019);GLA 250 2.0;2.0;P;4;211;56
+Mercedes-Benz;GLC;X253 (2015–2022);GLC 250 2.0;2.0;P;4;211;66
+Mercedes-Benz;GLC;X253 (2015–2022);GLC 300 2.0;2.0;P;4;245;66
+Mercedes-Benz;GLC;X253 (2015–2022);GLC 43 AMG 3.0;3.0;P;6;390;66
+Mercedes-Benz;GLC;X253 (2015–2022);GLC 220d 2.1;2.1;D;4;170;66
+Mercedes-Benz;GLC;X253 (2015–2022);GLC 250d 2.1;2.1;D;4;204;66
+Mercedes-Benz;GLE;W166 (2015–2018);GLE 400 3.0 V6;3.0;P;6;333;93
+Mercedes-Benz;GLE;W166 (2015–2018);GLE 350d 3.0;3.0;D;6;249;93
+Mercedes-Benz;GLE;V167 (2019–);GLE 300d 2.0;2.0;D;4;245;85
+Mercedes-Benz;GLE;V167 (2019–);GLE 400d 2.9;2.9;D;6;330;85
+Mercedes-Benz;GLE;V167 (2019–);GLE 450 3.0;3.0;P;6;367;85
+Mercedes-Benz;GLE;V167 (2019–);GLE 53 AMG 3.0;3.0;P;6;435;85
+Mercedes-Benz;GLS;X166 (2015–2019);GLS 400 3.0 V6;3.0;P;6;333;100
+Mercedes-Benz;GLS;X166 (2015–2019);GLS 500 4.7 V8;4.7;P;8;455;100
+Mercedes-Benz;GLS;X166 (2015–2019);GLS 350d 3.0;3.0;D;6;249;100
+Mercedes-Benz;GLS;X167 (2019–);400d 4MATIC;2.9;D;6;330;90
+Mercedes-Benz;GLS;X167 (2019–);450 4MATIC;3.0;P;6;367;90
+Mercedes-Benz;GLS;X167 (2019–);580 4MATIC;4.0;P;8;489;90
+Mercedes-Benz;GLS;X167 (2019–);Maybach GLS 600;4.0;P;8;558;90
+Mercedes-Benz;M-класс;W164 (2005–2011);ML350 3.5 V6;3.5;P;6;272;95
+Mercedes-Benz;M-класс;W164 (2005–2011);ML500 5.5 V8;5.5;P;8;388;95
+Mercedes-Benz;M-класс;W164 (2005–2011);ML350 CDI 3.0;3.0;D;6;224;95
+Mercedes-Benz;M-класс;W166 (2011–2015);ML350 3.5 V6;3.5;P;6;306;93
+Mercedes-Benz;M-класс;W166 (2011–2015);ML350 BlueTEC 3.0;3.0;D;6;249;93
+Mercedes-Benz;S-класс;W221 (2005–2013);S350 3.5 V6;3.5;P;6;272;90
+Mercedes-Benz;S-класс;W221 (2005–2013);S500 5.5 V8;5.5;P;8;388;90
+Mercedes-Benz;S-класс;W222 (2013–2020);S400 3.0 V6;3.0;P;6;367;70
+Mercedes-Benz;S-класс;W222 (2013–2020);S500 4.7 V8;4.7;P;8;455;70
+Mercedes-Benz;S-класс;W222 (2013–2020);S350d 3.0;3.0;D;6;249;70
+Mercedes-Benz;S-класс;W223 (2020–);S450 3.0;3.0;P;6;367;76
+Mercedes-Benz;S-класс;W223 (2020–);S580 4.0 V8;4.0;P;8;503;76
+Mercedes-Benz;S-класс;W223 (2020–);S350d 2.9;2.9;D;6;286;76
+Mercedes-Benz;Sprinter;W906 (2006–2018);2.1 CDI;2.1;D;4;143;75
+Mercedes-Benz;Sprinter;W907 (2018–);2.1 CDI;2.1;D;4;163;71
+Mercedes-Benz;V-класс;W447 (2014–);V250 2.0;2.0;P;4;211;57
+Mercedes-Benz;V-класс;W447 (2014–);V220d 2.1;2.1;D;4;163;57
+Mercedes-Benz;V-класс;W447 (2014–);V250d 2.1;2.1;D;4;190;57
+Mercedes-Benz;Vito;W639 (2003–2014);2.1 CDI;2.1;D;4;136;75
+Mercedes-Benz;Vito;W447 (2014–);2.1 CDI;2.1;D;4;136;57
+
+Mitsubishi;ASX;GA (2010–);1.6;1.6;P;4;117;63
+Mitsubishi;ASX;GA (2010–);1.8;1.8;P;4;140;63
+Mitsubishi;ASX;GA (2010–);2.0;2.0;P;4;150;63
+Mitsubishi;Eclipse Cross;GK (2017–);1.5T;1.5;P;4;150;60
+Mitsubishi;Eclipse Cross;GK (2017–);2.0;2.0;P;4;150;60
+Mitsubishi;L200;V (2015–);2.4 DI-D;2.4;D;4;154;75
+Mitsubishi;L200;V (2015–);2.4 DI-D;2.4;D;4;181;75
+Mitsubishi;Lancer;X (2007–2017);1.5;1.5;P;4;109;59
+Mitsubishi;Lancer;X (2007–2017);1.6;1.6;P;4;117;59
+Mitsubishi;Lancer;X (2007–2017);1.8;1.8;P;4;140;59
+Mitsubishi;Lancer;X (2007–2017);2.0;2.0;P;4;150;59
+Mitsubishi;Outlander;XL (2006–2012);2.0;2.0;P;4;147;60
+Mitsubishi;Outlander;XL (2006–2012);2.4;2.4;P;4;170;60
+Mitsubishi;Outlander;XL (2006–2012);3.0 V6;3.0;P;6;220;60
+Mitsubishi;Outlander;III (2012–2022);2.0;2.0;P;4;146;60
+Mitsubishi;Outlander;III (2012–2022);2.4;2.4;P;4;167;60
+Mitsubishi;Outlander;III (2012–2022);3.0 V6;3.0;P;6;227;60
+Mitsubishi;Pajero;IV (2006–2021);3.0 V6;3.0;P;6;178;88
+Mitsubishi;Pajero;IV (2006–2021);3.8 V6;3.8;P;6;250;88
+Mitsubishi;Pajero;IV (2006–2021);3.2 DI-D;3.2;D;4;200;88
+Mitsubishi;Pajero Sport;II (2008–2016);2.5 DI-D;2.5;D;4;178;70
+Mitsubishi;Pajero Sport;II (2008–2016);3.0 V6;3.0;P;6;222;70
+Mitsubishi;Pajero Sport;III (2015–);2.4 DI-D;2.4;D;4;181;68
+Mitsubishi;Pajero Sport;III (2015–);3.0 V6;3.0;P;6;209;68
+
+Nissan;Almera;G15 (2012–2018);1.6;1.6;P;4;102;41
+Nissan;Juke;F15 (2010–2019);1.6;1.6;P;4;117;46
+Nissan;Juke;F15 (2010–2019);1.6 DIG-T;1.6;P;4;190;46
+Nissan;Murano;Z51 (2008–2016);3.5 V6;3.5;P;6;249;82
+Nissan;Murano;Z52 (2014–);3.5 V6;3.5;P;6;249;72
+Nissan;Note;E11 (2005–2013);1.4;1.4;P;4;88;46
+Nissan;Note;E11 (2005–2013);1.6;1.6;P;4;110;46
+Nissan;Pathfinder;R52 (2012–2020);3.5 V6;3.5;P;6;249;74
+Nissan;Patrol;Y62 (2010–);5.6 V8;5.6;P;8;405;140
+Nissan;Qashqai;J10 (2006–2013);1.6;1.6;P;4;117;65
+Nissan;Qashqai;J10 (2006–2013);2.0;2.0;P;4;141;65
+Nissan;Qashqai;J11 (2013–2022);1.2 DIG-T;1.2;P;4;115;65
+Nissan;Qashqai;J11 (2013–2022);2.0;2.0;P;4;144;65
+Nissan;Qashqai;J11 (2013–2022);1.6 dCi;1.6;D;4;130;65
+Nissan;Sentra;B17 (2014–2017);1.6;1.6;P;4;117;50
+Nissan;Teana;J32 (2008–2014);2.5;2.5;P;6;182;70
+Nissan;Teana;J32 (2008–2014);3.5 V6;3.5;P;6;249;70
+Nissan;Teana;L33 (2014–2020);2.5;2.5;P;4;173;68
+Nissan;Terrano;D10 (2014–2022);1.6;1.6;P;4;114;50
+Nissan;Terrano;D10 (2014–2022);2.0;2.0;P;4;143;50
+Nissan;Tiida;C11 (2004–2014);1.6;1.6;P;4;110;52
+Nissan;X-Trail;T31 (2007–2014);2.0;2.0;P;4;141;65
+Nissan;X-Trail;T31 (2007–2014);2.5;2.5;P;4;169;65
+Nissan;X-Trail;T31 (2007–2014);2.0 dCi;2.0;D;4;150;65
+Nissan;X-Trail;T32 (2013–2022);2.0;2.0;P;4;144;60
+Nissan;X-Trail;T32 (2013–2022);2.5;2.5;P;4;171;60
+Nissan;X-Trail;T32 (2013–2022);1.6 dCi;1.6;D;4;130;60
+
+Omoda;C5;I (2022–);1.5T;1.5;P;4;147;51
+Omoda;C5;I (2022–);1.6T;1.6;P;4;186;51
+
+Opel;Astra;H (2004–2014);1.6;1.6;P;4;115;52
+Opel;Astra;H (2004–2014);1.8;1.8;P;4;140;52
+Opel;Astra;J (2009–2015);1.4T;1.4;P;4;140;56
+Opel;Astra;J (2009–2015);1.6;1.6;P;4;115;56
+Opel;Astra;J (2009–2015);1.8;1.8;P;4;140;56
+Opel;Corsa;D (2006–2014);1.4;1.4;P;4;101;45
+Opel;Insignia;A (2008–2017);1.8;1.8;P;4;140;70
+Opel;Insignia;A (2008–2017);2.0T;2.0;P;4;249;70
+Opel;Mokka;J13 (2012–2016);1.4T;1.4;P;4;140;53
+Opel;Mokka;J13 (2012–2016);1.8;1.8;P;4;140;53
+
+Peugeot;3008;II (2016–);1.6 THP;1.6;P;4;150;53
+Peugeot;3008;II (2016–);2.0 HDi;2.0;D;4;150;53
+Peugeot;308;T7 (2007–2015);1.6;1.6;P;4;120;60
+Peugeot;308;T7 (2007–2015);1.6 THP;1.6;P;4;150;60
+Peugeot;408;I (2012–2022);1.6;1.6;P;4;115;60
+Peugeot;408;I (2012–2022);1.6 THP;1.6;P;4;150;60
+
+Porsche;Cayenne;958 (2010–2017);3.6 V6;3.6;P;6;300;85
+Porsche;Cayenne;958 (2010–2017);S 4.8 V8;4.8;P;8;400;85
+Porsche;Cayenne;958 (2010–2017);Diesel 3.0;3.0;D;6;245;85
+Porsche;Cayenne;958 (2010–2017);Turbo 4.8 V8;4.8;P;8;500;100
+Porsche;Cayenne;9YA (2017–);3.0 V6;3.0;P;6;340;75
+Porsche;Cayenne;9YA (2017–);S 2.9 V6;2.9;P;6;440;75
+Porsche;Cayenne;9YA (2017–);Turbo 4.0 V8;4.0;P;8;550;90
+Porsche;Macan;95B (2014–);2.0T;2.0;P;4;252;65
+Porsche;Macan;95B (2014–);S 3.0 V6;3.0;P;6;354;65
+Porsche;Macan;95B (2014–);GTS 2.9 V6;2.9;P;6;380;65
+Porsche;Panamera;971 (2016–2023);2.9 V6;2.9;P;6;330;75
+Porsche;Panamera;971 (2016–2023);4S 2.9 V6;2.9;P;6;440;75
+Porsche;Panamera;971 (2016–2023);Turbo 4.0 V8;4.0;P;8;550;90
+
+Renault;Arkana;I (2019–);1.6;1.6;P;4;114;50
+Renault;Arkana;I (2019–);1.3 TCe;1.3;P;4;150;50
+Renault;Dokker;I (2017–2021);1.6 8V;1.6;P;4;82;50
+Renault;Dokker;I (2017–2021);1.6 16V;1.6;P;4;102;50
+Renault;Duster;I (2010–2021);1.6;1.6;P;4;114;50
+Renault;Duster;I (2010–2021);2.0;2.0;P;4;143;50
+Renault;Duster;I (2010–2021);1.5 dCi;1.5;D;4;109;50
+Renault;Duster;II (2021–);1.6;1.6;P;4;114;50
+Renault;Duster;II (2021–);1.3 TCe;1.3;P;4;150;50
+Renault;Duster;II (2021–);1.5 dCi;1.5;D;4;109;50
+Renault;Fluence;I (2009–2017);1.6;1.6;P;4;114;60
+Renault;Fluence;I (2009–2017);2.0;2.0;P;4;138;60
+Renault;Kaptur;I (2016–);1.6;1.6;P;4;114;52
+Renault;Kaptur;I (2016–);2.0;2.0;P;4;143;52
+Renault;Kaptur;I (2016–);1.3 TCe;1.3;P;4;150;52
+Renault;Koleos;II (2016–);2.0;2.0;P;4;144;60
+Renault;Koleos;II (2016–);2.5;2.5;P;4;171;60
+Renault;Logan;I (2004–2015);1.4 8V;1.4;P;4;75;50
+Renault;Logan;I (2004–2015);1.6 8V;1.6;P;4;84;50
+Renault;Logan;I (2004–2015);1.6 16V;1.6;P;4;102;50
+Renault;Logan;II (2014–2022);1.6 8V;1.6;P;4;82;50
+Renault;Logan;II (2014–2022);1.6 16V;1.6;P;4;102;50
+Renault;Logan;II (2014–2022);1.6 16V;1.6;P;4;113;50
+Renault;Megane;III (2008–2016);1.6;1.6;P;4;114;60
+Renault;Megane;III (2008–2016);2.0;2.0;P;4;138;60
+Renault;Sandero;II (2014–2022);1.6 8V;1.6;P;4;82;50
+Renault;Sandero;II (2014–2022);1.6 16V;1.6;P;4;102;50
+Renault;Sandero;II (2014–2022);1.6 16V;1.6;P;4;113;50
+
+Skoda;Fabia;III (2014–2021);1.4;1.4;P;4;86;45
+Skoda;Fabia;III (2014–2021);1.6;1.6;P;4;110;45
+Skoda;Karoq;I (2017–);1.4 TSI;1.4;P;4;150;50
+Skoda;Karoq;I (2017–);1.6 MPI;1.6;P;4;110;50
+Skoda;Kodiaq;I (2016–);1.4 TSI;1.4;P;4;150;60
+Skoda;Kodiaq;I (2016–);2.0 TSI;2.0;P;4;180;60
+Skoda;Kodiaq;I (2016–);2.0 TDI;2.0;D;4;150;60
+Skoda;Octavia;A5 (2004–2013);1.4;1.4;P;4;80;55
+Skoda;Octavia;A5 (2004–2013);1.6;1.6;P;4;102;55
+Skoda;Octavia;A5 (2004–2013);1.8 TSI;1.8;P;4;152;55
+Skoda;Octavia;A7 (2013–2020);1.2 TSI;1.2;P;4;105;50
+Skoda;Octavia;A7 (2013–2020);1.4 TSI;1.4;P;4;150;50
+Skoda;Octavia;A7 (2013–2020);1.6 MPI;1.6;P;4;110;50
+Skoda;Octavia;A7 (2013–2020);1.8 TSI;1.8;P;4;180;50
+Skoda;Octavia;A8 (2020–);1.4 TSI;1.4;P;4;150;45
+Skoda;Octavia;A8 (2020–);1.6 MPI;1.6;P;4;110;45
+Skoda;Rapid;I (2012–2020);1.4 TSI;1.4;P;4;125;55
+Skoda;Rapid;I (2012–2020);1.6 MPI;1.6;P;4;90;55
+Skoda;Rapid;I (2012–2020);1.6 MPI;1.6;P;4;110;55
+Skoda;Rapid;II (2020–);1.4 TSI;1.4;P;4;125;55
+Skoda;Rapid;II (2020–);1.6 MPI;1.6;P;4;110;55
+Skoda;Superb;III (2015–);1.4 TSI;1.4;P;4;150;66
+Skoda;Superb;III (2015–);1.8 TSI;1.8;P;4;180;66
+Skoda;Superb;III (2015–);2.0 TSI;2.0;P;4;220;66
+Skoda;Yeti;I (2009–2018);1.2 TSI;1.2;P;4;105;55
+Skoda;Yeti;I (2009–2018);1.4 TSI;1.4;P;4;122;55
+Skoda;Yeti;I (2009–2018);1.6 MPI;1.6;P;4;110;55
+Skoda;Yeti;I (2009–2018);1.8 TSI;1.8;P;4;152;60
+
+SsangYong;Actyon;II (2010–);2.0;2.0;P;4;149;57
+SsangYong;Actyon;II (2010–);2.0 D;2.0;D;4;175;57
+SsangYong;Kyron;I (2005–2015);2.3;2.3;P;4;150;75
+SsangYong;Kyron;I (2005–2015);2.0 D;2.0;D;4;141;75
+SsangYong;Rexton;II (2006–2017);2.7 D;2.7;D;5;186;78
+
+Subaru;Forester;SJ (2012–2018);2.0;2.0;P;4;150;60
+Subaru;Forester;SJ (2012–2018);2.5;2.5;P;4;171;60
+Subaru;Forester;SJ (2012–2018);2.0 XT;2.0;P;4;241;60
+Subaru;Forester;SK (2018–);2.0;2.0;P;4;150;63
+Subaru;Forester;SK (2018–);2.5;2.5;P;4;185;63
+Subaru;Outback;BS (2014–2019);2.5;2.5;P;4;175;60
+Subaru;Outback;BS (2014–2019);3.6;3.6;P;6;260;60
+Subaru;XV;GT (2017–);1.6;1.6;P;4;114;63
+Subaru;XV;GT (2017–);2.0;2.0;P;4;150;63
+
+Suzuki;Grand Vitara;III (2005–2016);2.0;2.0;P;4;140;66
+Suzuki;Grand Vitara;III (2005–2016);2.4;2.4;P;4;169;66
+Suzuki;Jimny;IV (2018–);1.5;1.5;P;4;102;40
+Suzuki;SX4;II (2013–2021);1.6;1.6;P;4;117;47
+Suzuki;Vitara;IV (2015–);1.6;1.6;P;4;117;47
+Suzuki;Vitara;IV (2015–);1.4 BoosterJet;1.4;P;4;140;47
+
+Tank;300;I (2021–);2.0T;2.0;P;4;220;80
+Tank;500;I (2022–);3.0 V6 Twin Turbo;3.0;P;6;354;80
+
+Toyota;C-HR;AX10 (2016–);1.2T;1.2;P;4;115;50
+Toyota;C-HR;AX10 (2016–);2.0;2.0;P;4;148;50
+Toyota;Camry;XV40 (2006–2011);2.4;2.4;P;4;167;70
+Toyota;Camry;XV40 (2006–2011);3.5 V6;3.5;P;6;277;70
+Toyota;Camry;XV50 (2011–2017);2.0;2.0;P;4;150;70
+Toyota;Camry;XV50 (2011–2017);2.5;2.5;P;4;181;70
+Toyota;Camry;XV50 (2011–2017);3.5 V6;3.5;P;6;249;70
+Toyota;Camry;XV70 (2017–);2.0;2.0;P;4;150;60
+Toyota;Camry;XV70 (2017–);2.5;2.5;P;4;181;60
+Toyota;Camry;XV70 (2017–);2.5;2.5;P;4;200;60
+Toyota;Camry;XV70 (2017–);3.5 V6;3.5;P;6;249;60
+Toyota;Corolla;E150 (2006–2013);1.4;1.4;P;4;97;55
+Toyota;Corolla;E150 (2006–2013);1.6;1.6;P;4;124;55
+Toyota;Corolla;E180 (2013–2019);1.6;1.6;P;4;122;50
+Toyota;Corolla;E180 (2013–2019);1.8;1.8;P;4;140;50
+Toyota;Corolla;E210 (2019–);1.6;1.6;P;4;122;50
+Toyota;Corolla;E210 (2019–);1.8 Hybrid;1.8;H;4;122;43
+Toyota;Fortuner;AN160 (2015–);2.8 D;2.8;D;4;177;80
+Toyota;Highlander;XU50 (2013–2020);3.5 V6;3.5;P;6;249;72
+Toyota;Hilux;AN120 (2015–);2.4 D;2.4;D;4;150;80
+Toyota;Hilux;AN120 (2015–);2.8 D;2.8;D;4;177;80
+Toyota;Land Cruiser;200 (2007–2021);4.6 V8;4.6;P;8;309;93
+Toyota;Land Cruiser;200 (2007–2021);4.5 V8 D;4.5;D;8;249;93
+Toyota;Land Cruiser;300 (2021–);3.5 V6 Twin Turbo;3.5;P;6;415;80
+Toyota;Land Cruiser;300 (2021–);3.3 V6 D;3.3;D;6;299;80
+Toyota;Land Cruiser Prado;150 (2009–2023);2.7;2.7;P;4;163;87
+Toyota;Land Cruiser Prado;150 (2009–2023);4.0 V6;4.0;P;6;282;87
+Toyota;Land Cruiser Prado;150 (2009–2023);2.8 D;2.8;D;4;177;87
+Toyota;Land Cruiser Prado;150 (2009–2023);3.0 D;3.0;D;4;173;87
+Toyota;RAV4;XA30 (2005–2012);2.0;2.0;P;4;158;60
+Toyota;RAV4;XA30 (2005–2012);2.4;2.4;P;4;170;60
+Toyota;RAV4;XA40 (2013–2019);2.0;2.0;P;4;146;60
+Toyota;RAV4;XA40 (2013–2019);2.5;2.5;P;4;180;60
+Toyota;RAV4;XA40 (2013–2019);2.2 D;2.2;D;4;150;60
+Toyota;RAV4;XA50 (2019–);2.0;2.0;P;4;149;55
+Toyota;RAV4;XA50 (2019–);2.5;2.5;P;4;199;55
+Toyota;RAV4;XA50 (2019–);2.5 Hybrid;2.5;H;4;218;55
+
+UAZ;Hunter;315195 (2003–);2.7 ЗМЗ-409;2.7;P;4;128;80
+UAZ;Patriot;3163 (2005–);2.7 ЗМЗ-409;2.7;P;4;135;72
+UAZ;Patriot;3163 (2005–);2.7 ЗМЗ-409 Pro;2.7;P;4;150;72
+UAZ;Patriot;3163 (2005–);2.2 ЗМЗ-51432 D;2.2;D;4;114;72
+UAZ;Pickup;23632 (2008–);2.7 ЗМЗ-409;2.7;P;4;150;72
+UAZ;Буханка;452/2206 (2011–);2.7 ЗМЗ-409;2.7;P;4;112;78
+
+Volkswagen;Amarok;I (2010–2022);2.0 TDI;2.0;D;4;180;80
+Volkswagen;Amarok;I (2010–2022);3.0 TDI V6;3.0;D;6;224;80
+Volkswagen;Caravelle/Multivan;T6 (2015–);2.0 TSI;2.0;P;4;150;80
+Volkswagen;Caravelle/Multivan;T6 (2015–);2.0 TDI;2.0;D;4;150;80
+Volkswagen;Caravelle/Multivan;T6 (2015–);2.0 BiTDI;2.0;D;4;199;80
+Volkswagen;Golf;VI (2008–2013);1.4 TSI;1.4;P;4;122;55
+Volkswagen;Golf;VI (2008–2013);1.6;1.6;P;4;102;55
+Volkswagen;Golf;VII (2012–2020);1.4 TSI;1.4;P;4;125;50
+Volkswagen;Golf;VII (2012–2020);1.4 TSI;1.4;P;4;150;50
+Volkswagen;Golf;VII (2012–2020);1.6 MPI;1.6;P;4;110;50
+Volkswagen;Jetta;VI (2010–2018);1.4 TSI;1.4;P;4;150;55
+Volkswagen;Jetta;VI (2010–2018);1.6 MPI;1.6;P;4;110;55
+Volkswagen;Jetta;VII (2018–);1.4 TSI;1.4;P;4;150;50
+Volkswagen;Jetta;VII (2018–);1.6 MPI;1.6;P;4;110;50
+Volkswagen;Passat;B7 (2010–2015);1.4 TSI;1.4;P;4;122;70
+Volkswagen;Passat;B7 (2010–2015);1.8 TSI;1.8;P;4;152;70
+Volkswagen;Passat;B7 (2010–2015);2.0 TDI;2.0;D;4;140;70
+Volkswagen;Passat;B8 (2014–);1.4 TSI;1.4;P;4;150;66
+Volkswagen;Passat;B8 (2014–);1.8 TSI;1.8;P;4;180;66
+Volkswagen;Passat;B8 (2014–);2.0 TSI;2.0;P;4;220;66
+Volkswagen;Passat;B8 (2014–);2.0 TDI;2.0;D;4;150;66
+Volkswagen;Polo;V седан (2010–2020);1.6 MPI;1.6;P;4;105;55
+Volkswagen;Polo;V седан (2010–2020);1.6 MPI;1.6;P;4;110;55
+Volkswagen;Polo;V седан (2010–2020);1.4 TSI;1.4;P;4;125;55
+Volkswagen;Polo;VI лифтбек (2020–);1.6 MPI;1.6;P;4;90;55
+Volkswagen;Polo;VI лифтбек (2020–);1.6 MPI;1.6;P;4;110;55
+Volkswagen;Polo;VI лифтбек (2020–);1.4 TSI;1.4;P;4;125;55
+Volkswagen;Taos;I (2021–);1.4 TSI;1.4;P;4;150;50
+Volkswagen;Teramont;I (2017–);2.0 TSI;2.0;P;4;220;70
+Volkswagen;Teramont;I (2017–);3.6 V6;3.6;P;6;280;70
+Volkswagen;Tiguan;I (2007–2016);1.4 TSI;1.4;P;4;150;64
+Volkswagen;Tiguan;I (2007–2016);2.0 TSI;2.0;P;4;170;64
+Volkswagen;Tiguan;I (2007–2016);2.0 TDI;2.0;D;4;140;64
+Volkswagen;Tiguan;II (2016–);1.4 TSI;1.4;P;4;125;58
+Volkswagen;Tiguan;II (2016–);1.4 TSI;1.4;P;4;150;58
+Volkswagen;Tiguan;II (2016–);2.0 TSI;2.0;P;4;180;60
+Volkswagen;Tiguan;II (2016–);2.0 TSI;2.0;P;4;220;60
+Volkswagen;Tiguan;II (2016–);2.0 TDI;2.0;D;4;150;60
+Volkswagen;Touareg;II (2010–2018);3.6 V6;3.6;P;6;249;85
+Volkswagen;Touareg;II (2010–2018);3.0 TDI V6;3.0;D;6;245;85
+Volkswagen;Touareg;III (2018–);3.0 TSI V6;3.0;P;6;340;75
+Volkswagen;Touareg;III (2018–);3.0 TDI V6;3.0;D;6;249;75
+Volkswagen;Touareg;III (2018–);3.0 TDI V6;3.0;D;6;286;75
+
+Volvo;S60;II (2010–2018);T4 1.6;1.6;P;4;180;68
+Volvo;S60;II (2010–2018);T5 2.0;2.0;P;4;245;68
+Volvo;S60;II (2010–2018);D4 2.0;2.0;D;4;190;68
+Volvo;S90;II (2016–);T5 2.0;2.0;P;4;249;60
+Volvo;S90;II (2016–);D4 2.0;2.0;D;4;190;60
+Volvo;XC40;I (2017–);T4 2.0;2.0;P;4;190;54
+Volvo;XC40;I (2017–);T5 2.0;2.0;P;4;247;54
+Volvo;XC60;I (2008–2017);T5 2.0;2.0;P;4;245;70
+Volvo;XC60;I (2008–2017);T6 3.0;3.0;P;6;304;70
+Volvo;XC60;I (2008–2017);D5 2.4;2.4;D;5;215;70
+Volvo;XC60;II (2017–);T5 2.0;2.0;P;4;249;71
+Volvo;XC60;II (2017–);T6 2.0;2.0;P;4;320;71
+Volvo;XC60;II (2017–);D5 2.0;2.0;D;4;235;71
+Volvo;XC90;I (2002–2014);3.2;3.2;P;6;243;72
+Volvo;XC90;I (2002–2014);D5 2.4;2.4;D;5;200;72
+Volvo;XC90;II (2014–);T5 2.0;2.0;P;4;249;71
+Volvo;XC90;II (2014–);T6 2.0;2.0;P;4;320;71
+Volvo;XC90;II (2014–);D5 2.0;2.0;D;4;235;71

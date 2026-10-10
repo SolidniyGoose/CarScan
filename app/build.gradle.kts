@@ -1,7 +1,22 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// Версия приложения: GitHub Actions передаёт её из тега (v1.2.3 → -PappVersion=1.2.3).
+// По ней приложение сравнивает себя с последним релизом на GitHub.
+val appVersion = (findProperty("appVersion") as String?) ?: "1.0.0"
+val appVersionCode = appVersion.split('.').map { it.toIntOrNull() ?: 0 }
+    .let { it.getOrElse(0) { 0 } * 10000 + it.getOrElse(1) { 0 } * 100 + it.getOrElse(2) { 0 } }
+
+// Ключ подписи: из переменных окружения (GitHub Actions) или keystore.properties (локально, не в git).
+// Один ключ для Android Studio и релизов — иначе обновление с GitHub не встанет поверх установленной версии.
+val keystoreProperties = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun signingValue(property: String, env: String): String? = System.getenv(env) ?: keystoreProperties.getProperty(property)
 
 android {
     namespace = "com.carscan"
@@ -13,10 +28,22 @@ android {
         applicationId = "com.carscan"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    val releaseKeyFile = signingValue("storeFile", "CARSCAN_KEYSTORE")
+    signingConfigs {
+        if (releaseKeyFile != null) {
+            create("carscan") {
+                storeFile = rootProject.file(releaseKeyFile)
+                storePassword = signingValue("storePassword", "CARSCAN_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "CARSCAN_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "CARSCAN_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -24,6 +51,10 @@ android {
             optimization {
                 enable = false
             }
+            if (releaseKeyFile != null) signingConfig = signingConfigs.getByName("carscan")
+        }
+        debug {
+            if (releaseKeyFile != null) signingConfig = signingConfigs.getByName("carscan")
         }
     }
     compileOptions {
@@ -46,6 +77,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation("androidx.webkit:webkit:1.9.0")
     testImplementation(libs.junit)
+    // Настоящая реализация org.json для локальных unit-тестов (в android.jar только заглушки)
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

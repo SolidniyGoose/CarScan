@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.CarScan" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Тёмное окно: при запуске нет белой вспышки до отрисовки Compose -->
+    <style name="Theme.CarScan" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF06090D</item>
+    </style>
 </resources>
