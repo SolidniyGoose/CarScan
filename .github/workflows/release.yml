@@ -44,8 +44,20 @@ jobs:
           CARSCAN_TG_CHAT_ID: ${{ secrets.CARSCAN_TG_CHAT_ID }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease testDebugUnitTest -PappVersion="${GITHUB_REF_NAME#v}" --no-daemon
+          ./gradlew assembleRelease testDebugUnitTest -PappVersion="${GITHUB_REF_NAME#v}" --no-daemon 2>&1 | tee build.log
+          test "${PIPESTATUS[0]}" -eq 0
           mv app/build/outputs/apk/release/app-release.apk "CarScan-${GITHUB_REF_NAME}.apk"
+
+      # Причина ошибки — в аннотации запуска: её видно на странице Actions без раскрытия логов
+      - name: Причина ошибки
+        if: failure()
+        run: |
+          grep -A12 "What went wrong" build.log | head -30 | tr '\n' ' ' | sed 's/^/::error::/' || true
+          echo
+          for f in app/build/test-results/testDebugUnitTest/*.xml; do
+            grep -q "<failure" "$f" 2>/dev/null && grep -A3 "<failure" "$f" | head -4 | tr '\n' ' ' | sed "s|^|::error::$(basename "$f"): |" && echo
+          done || true
+          grep -E "^e: " build.log | head -10 | sed 's/^/::error::/' || true
 
       - name: Релиз на GitHub
         uses: softprops/action-gh-release@v2
