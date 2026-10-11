@@ -22,8 +22,7 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      - uses: android-actions/setup-android@v3
-
+      # Android SDK уже установлен на раннерах GitHub (ANDROID_HOME); недостающую платформу Gradle скачает сам
       - name: Ключ подписи из секретов репозитория
         env:
           KEYSTORE_BASE64: ${{ secrets.CARSCAN_KEYSTORE_BASE64 }}
