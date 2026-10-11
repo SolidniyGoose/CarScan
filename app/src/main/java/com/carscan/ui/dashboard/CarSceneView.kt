@@ -42,7 +42,8 @@ fun DashboardState.toSceneJson(): String {
                 .put("status", it.status)
                 .put("value", it.value)
                 .put("level", it.level.js)
-                .put("heat", it.heat.toDouble()),
+                // Шаг 0.05: мелкие колебания не гоняют данные в WebView и не перерисовывают подсветку
+                .put("heat", (it.heat * 20).roundToInt() / 20.0),
         )
     }
     val palette = Palettes.byId(settings.themeId)

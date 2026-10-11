@@ -22,6 +22,9 @@ object Pid {
     const val MODULE_VOLTAGE = 0x42
     const val AMBIENT_AIR_TEMP = 0x46
     const val FUEL_RATE = 0x5E
+    /** Последняя маска, которую запрашиваем (A1–C0): дальше PID для легковых почти не бывает. */
+    const val SUPPORTED_A1_C0 = 0xA0
+    const val ODOMETER = 0xA6
 }
 
 data class MonitorStatus(

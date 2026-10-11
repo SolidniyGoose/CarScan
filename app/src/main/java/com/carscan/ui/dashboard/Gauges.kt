@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -30,12 +31,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -73,102 +75,133 @@ fun AnalogClock(modifier: Modifier = Modifier) {
     val accent = CarScanTheme.palette.accent
     val measurer = rememberTextMeasurer()
 
-    Canvas(modifier) {
-        val r = size.minDimension / 2f * 0.86f
-        val c = center
-        val calendar = Calendar.getInstance().apply { timeInMillis = now }
-        val hours = calendar.get(Calendar.HOUR)
-        val minutes = calendar.get(Calendar.MINUTE)
-        val seconds = calendar.get(Calendar.SECOND)
-
-        // Тень и тонкое свечение цвета темы вокруг корпуса
-        drawCircle(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent), c + Offset(0f, r * 0.04f), r * 1.12f), r * 1.12f, c + Offset(0f, r * 0.04f))
-        drawCircle(accent.copy(alpha = 0.35f), r * 1.015f, c, style = Stroke(width = 1.dp.toPx()))
-
-        // Полированный безель: «блики» стали по кругу
-        drawCircle(
-            Brush.sweepGradient(
-                listOf(STEEL_LIGHT, STEEL_DARK, STEEL_MID, STEEL_SHADOW, STEEL_LIGHT, STEEL_DARK, STEEL_MID, STEEL_LIGHT),
-                c,
-            ),
-            r,
-            c,
+    Box(modifier) {
+        // Циферблат статичен: записывается в отдельный слой один раз (и при смене размера или темы),
+        // а не каждую секунду и не при каждом обновлении телеметрии по соседству
+        Spacer(
+            Modifier
+                .matchParentSize()
+                .graphicsLayer()
+                .drawWithCache {
+                    val r = size.minDimension / 2f * 0.86f
+                    val numeral = TextStyle(color = Color(0xFFF1F3F5), fontSize = (r * 0.26f).toSp(), fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+                    val texts = ClockTexts(
+                        twelve = measurer.measure("12", numeral) to measurer.measure("12", numeral.copy(color = Color.Black.copy(alpha = 0.6f))),
+                        six = measurer.measure("6", numeral) to measurer.measure("6", numeral.copy(color = Color.Black.copy(alpha = 0.6f))),
+                        brand = measurer.measure("CARSCAN", TextStyle(color = Color.White.copy(alpha = 0.85f), fontSize = (r * 0.085f).toSp(), fontWeight = FontWeight.SemiBold, letterSpacing = (r * 0.012f).toSp())),
+                        sub = measurer.measure("AUTOMATIC", TextStyle(color = Color.White.copy(alpha = 0.55f), fontSize = (r * 0.05f).toSp(), letterSpacing = (r * 0.01f).toSp())),
+                    )
+                    onDrawBehind { drawDial(r, accent, texts) }
+                },
         )
-        // Внутренняя фаска безеля: сверху темнее, снизу светлее — выглядит утопленной
-        drawCircle(
-            Brush.linearGradient(listOf(Color(0xFF2B2E33), Color(0xFFB9BEC4)), Offset(c.x, c.y - r), Offset(c.x, c.y + r)),
-            r * 0.885f,
-            c,
-        )
-        drawCircle(Color(0xFF111316), r * 0.86f, c)
+        // Стрелки — отдельный лёгкий слой, перерисовывается раз в секунду
+        Canvas(Modifier.matchParentSize().graphicsLayer()) {
+            val r = size.minDimension / 2f * 0.86f
+            val c = center
+            val calendar = Calendar.getInstance().apply { timeInMillis = now }
+            val hours = calendar.get(Calendar.HOUR)
+            val minutes = calendar.get(Calendar.MINUTE)
+            val seconds = calendar.get(Calendar.SECOND)
+            val dial = r * 0.85f
 
-        // Циферблат
-        val dial = r * 0.85f
-        drawCircle(Brush.radialGradient(listOf(Color(0xFF41454B), Color(0xFF26292D), Color(0xFF1C1E21)), c, dial), dial, c)
-
-        // Гильоше в центре: ромбовидная насечка
-        val guilloche = r * 0.42f
-        clipPath(Path().apply { addOval(Rect(c, guilloche)) }) {
-            val step = r * 0.045f
-            var d = -guilloche * 2
-            while (d < guilloche * 2) {
-                drawLine(Color.White.copy(alpha = 0.07f), Offset(c.x + d - guilloche, c.y - guilloche), Offset(c.x + d + guilloche, c.y + guilloche), 1.dp.toPx())
-                drawLine(Color.Black.copy(alpha = 0.25f), Offset(c.x + d + guilloche, c.y - guilloche), Offset(c.x + d - guilloche, c.y + guilloche), 1.dp.toPx())
-                d += step
+            // Стрелки: огранённые стальные «мечи», секундная — тонкая красная с противовесом
+            rotate((hours + minutes / 60f) * 30f, c) { swordHand(c, length = r * 0.50f, width = r * 0.06f) }
+            rotate((minutes + seconds / 60f) * 6f, c) { swordHand(c, length = r * 0.76f, width = r * 0.045f) }
+            rotate(seconds * 6f, c) {
+                drawLine(Neon.Red, Offset(c.x, c.y + r * 0.2f), Offset(c.x, c.y - r * 0.80f), 1.4.dp.toPx(), StrokeCap.Round)
+                drawCircle(Neon.Red, r * 0.035f, Offset(c.x, c.y + r * 0.16f))
             }
-        }
-        drawCircle(Color.White.copy(alpha = 0.12f), guilloche, c, style = Stroke(width = 1.dp.toPx()))
+            drawCircle(Brush.radialGradient(listOf(STEEL_LIGHT, STEEL_SHADOW), c - Offset(r * 0.01f, r * 0.01f), r * 0.05f), r * 0.045f, c)
+            drawCircle(Color(0xFF1A1C1F), r * 0.012f, c)
 
-        // Минутная дорожка по краю, красная отметка на 12
-        for (i in 0 until 60) {
-            val hourMark = i % 5 == 0
-            drawLine(
-                color = if (i == 0) Neon.Red else Color.White.copy(alpha = if (hourMark) 0.9f else 0.55f),
-                start = polar(c, dial * (if (hourMark) 0.90f else 0.93f), i * 6f),
-                end = polar(c, dial * 0.98f, i * 6f),
-                strokeWidth = (if (hourMark) 1.6 else 0.9).dp.toPx(),
+            // Блик стекла
+            drawOval(
+                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.07f), Color.Transparent), c.y - dial, c.y),
+                topLeft = Offset(c.x - dial * 0.75f, c.y - dial * 0.95f),
+                size = Size(dial * 1.5f, dial * 0.9f),
             )
         }
+    }
+}
 
-        // Накладные индексы: двойные на 3 и 9, цифры 12 и 6
-        for (h in 1..11) {
-            if (h == 6) continue
-            rotate(h * 30f, c) {
-                if (h == 3 || h == 9) {
-                    appliedBaton(c, r, offset = -r * 0.035f)
-                    appliedBaton(c, r, offset = r * 0.035f)
-                } else {
-                    appliedBaton(c, r, offset = 0f)
-                }
-            }
+/** Измеренные надписи циферблата: измерение текста дорогое, делаем его только при смене размера. */
+private class ClockTexts(
+    val twelve: Pair<TextLayoutResult, TextLayoutResult>,
+    val six: Pair<TextLayoutResult, TextLayoutResult>,
+    val brand: TextLayoutResult,
+    val sub: TextLayoutResult,
+)
+
+private fun DrawScope.drawDial(r: Float, accent: Color, texts: ClockTexts) {
+    val c = center
+
+    // Тень и тонкое свечение цвета темы вокруг корпуса
+    drawCircle(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent), c + Offset(0f, r * 0.04f), r * 1.12f), r * 1.12f, c + Offset(0f, r * 0.04f))
+    drawCircle(accent.copy(alpha = 0.35f), r * 1.015f, c, style = Stroke(width = 1.dp.toPx()))
+
+    // Полированный безель: «блики» стали по кругу
+    drawCircle(
+        Brush.sweepGradient(
+            listOf(STEEL_LIGHT, STEEL_DARK, STEEL_MID, STEEL_SHADOW, STEEL_LIGHT, STEEL_DARK, STEEL_MID, STEEL_LIGHT),
+            c,
+        ),
+        r,
+        c,
+    )
+    // Внутренняя фаска безеля: сверху темнее, снизу светлее — выглядит утопленной
+    drawCircle(
+        Brush.linearGradient(listOf(Color(0xFF2B2E33), Color(0xFFB9BEC4)), Offset(c.x, c.y - r), Offset(c.x, c.y + r)),
+        r * 0.885f,
+        c,
+    )
+    drawCircle(Color(0xFF111316), r * 0.86f, c)
+
+    // Циферблат
+    val dial = r * 0.85f
+    drawCircle(Brush.radialGradient(listOf(Color(0xFF41454B), Color(0xFF26292D), Color(0xFF1C1E21)), c, dial), dial, c)
+
+    // Гильоше в центре: ромбовидная насечка
+    val guilloche = r * 0.42f
+    clipPath(Path().apply { addOval(Rect(c, guilloche)) }) {
+        val step = r * 0.045f
+        var d = -guilloche * 2
+        while (d < guilloche * 2) {
+            drawLine(Color.White.copy(alpha = 0.07f), Offset(c.x + d - guilloche, c.y - guilloche), Offset(c.x + d + guilloche, c.y + guilloche), 1.dp.toPx())
+            drawLine(Color.Black.copy(alpha = 0.25f), Offset(c.x + d + guilloche, c.y - guilloche), Offset(c.x + d - guilloche, c.y + guilloche), 1.dp.toPx())
+            d += step
         }
-        val numeral = TextStyle(color = Color(0xFFF1F3F5), fontSize = (r * 0.26f).toSp(), fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
-        appliedText(measurer, "12", numeral, Offset(c.x, c.y - r * 0.60f))
-        appliedText(measurer, "6", numeral, Offset(c.x, c.y + r * 0.60f))
+    }
+    drawCircle(Color.White.copy(alpha = 0.12f), guilloche, c, style = Stroke(width = 1.dp.toPx()))
 
-        // Подпись под 12
-        val brand = measurer.measure("CARSCAN", TextStyle(color = Color.White.copy(alpha = 0.85f), fontSize = (r * 0.085f).toSp(), fontWeight = FontWeight.SemiBold, letterSpacing = (r * 0.012f).toSp()))
-        drawText(brand, topLeft = Offset(c.x - brand.size.width / 2f, c.y - r * 0.34f))
-        val sub = measurer.measure("AUTOMATIC", TextStyle(color = Color.White.copy(alpha = 0.55f), fontSize = (r * 0.05f).toSp(), letterSpacing = (r * 0.01f).toSp()))
-        drawText(sub, topLeft = Offset(c.x - sub.size.width / 2f, c.y - r * 0.34f + brand.size.height))
-
-        // Стрелки: огранённые стальные «мечи», секундная — тонкая красная с противовесом
-        rotate((hours + minutes / 60f) * 30f, c) { swordHand(c, length = r * 0.50f, width = r * 0.06f) }
-        rotate((minutes + seconds / 60f) * 6f, c) { swordHand(c, length = r * 0.76f, width = r * 0.045f) }
-        rotate(seconds * 6f, c) {
-            drawLine(Neon.Red, Offset(c.x, c.y + r * 0.2f), Offset(c.x, c.y - r * 0.80f), 1.4.dp.toPx(), StrokeCap.Round)
-            drawCircle(Neon.Red, r * 0.035f, Offset(c.x, c.y + r * 0.16f))
-        }
-        drawCircle(Brush.radialGradient(listOf(STEEL_LIGHT, STEEL_SHADOW), c - Offset(r * 0.01f, r * 0.01f), r * 0.05f), r * 0.045f, c)
-        drawCircle(Color(0xFF1A1C1F), r * 0.012f, c)
-
-        // Блик стекла
-        drawOval(
-            Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.07f), Color.Transparent), c.y - dial, c.y),
-            topLeft = Offset(c.x - dial * 0.75f, c.y - dial * 0.95f),
-            size = Size(dial * 1.5f, dial * 0.9f),
+    // Минутная дорожка по краю, красная отметка на 12
+    for (i in 0 until 60) {
+        val hourMark = i % 5 == 0
+        drawLine(
+            color = if (i == 0) Neon.Red else Color.White.copy(alpha = if (hourMark) 0.9f else 0.55f),
+            start = polar(c, dial * (if (hourMark) 0.90f else 0.93f), i * 6f),
+            end = polar(c, dial * 0.98f, i * 6f),
+            strokeWidth = (if (hourMark) 1.6 else 0.9).dp.toPx(),
         )
     }
+
+    // Накладные индексы: двойные на 3 и 9, цифры 12 и 6
+    for (h in 1..11) {
+        if (h == 6) continue
+        rotate(h * 30f, c) {
+            if (h == 3 || h == 9) {
+                appliedBaton(c, r, offset = -r * 0.035f)
+                appliedBaton(c, r, offset = r * 0.035f)
+            } else {
+                appliedBaton(c, r, offset = 0f)
+            }
+        }
+    }
+    appliedText(texts.twelve, Offset(c.x, c.y - r * 0.60f))
+    appliedText(texts.six, Offset(c.x, c.y + r * 0.60f))
+
+    // Подпись под 12
+    drawText(texts.brand, topLeft = Offset(c.x - texts.brand.size.width / 2f, c.y - r * 0.34f))
+    drawText(texts.sub, topLeft = Offset(c.x - texts.sub.size.width / 2f, c.y - r * 0.34f + texts.brand.size.height))
 }
 
 private val STEEL_LIGHT = Color(0xFFF2F4F6)
@@ -187,10 +220,9 @@ private fun DrawScope.appliedBaton(c: Offset, r: Float, offset: Float) {
     drawRect(Color.White.copy(alpha = 0.9f), Offset(left + w * 0.35f, top + height * 0.08f), Size(w * 0.3f, height * 0.84f))
 }
 
-/** Накладная цифра: тень, затем светлый металл. */
-private fun DrawScope.appliedText(measurer: TextMeasurer, text: String, style: TextStyle, center: Offset) {
-    val shadow = measurer.measure(text, style.copy(color = Color.Black.copy(alpha = 0.6f)))
-    val face = measurer.measure(text, style)
+/** Накладная цифра: тень, затем светлый металл. [layouts] — (лицо, тень). */
+private fun DrawScope.appliedText(layouts: Pair<TextLayoutResult, TextLayoutResult>, center: Offset) {
+    val (face, shadow) = layouts
     val topLeft = Offset(center.x - face.size.width / 2f, center.y - face.size.height / 2f)
     drawText(shadow, topLeft = topLeft + Offset(1.5.dp.toPx(), 2.dp.toPx()))
     drawText(face, topLeft = topLeft)

@@ -18,14 +18,40 @@
             const real = window.devicePixelRatio || 1;
             const cssPixels = Math.max(1, window.screen.width * window.screen.height);
             const idle = Math.max(1, Math.min(real, 1.5, Math.sqrt(1.8e6 / cssPixels)));
-            const moving = Math.max(0.75, Math.min(idle, idle * 0.62));
+            const base = Math.max(0.75, Math.min(idle, idle * 0.62));
+            // Слабая видеокарта (магнитола): если при вращении меньше ~35 кадров/с, разрешение в движении
+            // снижается ступенями до 0.5; при запасе — возвращается. Подобранное значение запоминается.
+            const MIN_MOVING = 0.5;
+            let moving = base;
+            try {
+                const saved = parseFloat(localStorage.getItem('carscan.movingScale'));
+                if (saved >= MIN_MOVING && saved <= base) moving = saved;
+            } catch (e) { /* хранилище недоступно */ }
             let current = idle;
+            let isMoving = false;
+            let frames = 0, total = 0;
             try {
                 Object.defineProperty(window, 'devicePixelRatio', { get: () => current, configurable: true });
             } catch (e) { /* старый WebView: оставляем как есть */ }
             return {
-                idle, moving,
-                set(isMoving) { current = isMoving ? moving : idle; },
+                idle,
+                get moving() { return moving; },
+                set(value) { isMoving = value; current = value ? moving : idle; },
+                // Длительность кадра во время движения камеры (мс)
+                frame(dt) {
+                    if (!isMoving || dt <= 0 || dt > 250) return;
+                    frames++; total += dt;
+                    if (frames < 30) return;
+                    const avg = total / frames;
+                    frames = 0; total = 0;
+                    let next = moving;
+                    if (avg > 28) next = Math.max(MIN_MOVING, moving - 0.1);
+                    else if (avg < 18) next = Math.min(base, moving + 0.05);
+                    if (Math.abs(next - moving) < 0.001) return;
+                    moving = next;
+                    current = moving;
+                    try { localStorage.setItem('carscan.movingScale', moving.toFixed(2)); } catch (e) { /* ничего */ }
+                },
             };
         })();
 
@@ -224,11 +250,12 @@
             transform: translate(-50%, -50%);
             border-radius: 50%;
             border: 1px solid var(--c);
-            opacity: 0.55;
-            animation: pulse 2.4s ease-out infinite;
+            opacity: 0.45;
             pointer-events: none;
         }
-        .hs.lvl-warn .ring, .hs.lvl-crit .ring { animation-duration: 1s; }
+        /* Пульсируют только предупреждения: бесконечная анимация шести колец держала WebView
+           в режиме 60 кадров/с постоянно — на слабых магнитолах это тормозило весь экран */
+        .hs.lvl-warn .ring, .hs.lvl-crit .ring { animation: pulse 1s ease-out infinite; }
         @keyframes pulse {
             0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.8; }
             100% { transform: translate(-50%, -50%) scale(1.7); opacity: 0; }
@@ -432,6 +459,10 @@
         // Состояние деталей из телеметрии: нагрев 0..1 и уровень топлива 0..1 (null — нет данных)
         const parts = { engine: 0, exhaust: 0, fuel: null };
         let partsKey = '';
+        // Любая смена материала — полная перерисовка 3D-кадра. Нагрузка двигателя (свечение выхлопа)
+        // меняется на каждом опросе, поэтому выхлоп обновляется не чаще раза в EXHAUST_PERIOD_MS
+        const EXHAUST_PERIOD_MS = 4000;
+        let shownExhaust = 0, exhaustAt = 0, exhaustTimer = null;
 
         function captureMaterials() {
             fuelSlices = viewer.model.materials.filter((m) => FUEL_SLICE.test(m.name)).length;
@@ -514,12 +545,18 @@
         }
 
         let stageFrames = 0;
+        let lastStageTime = 0;
         function kickStage(frames) {
             const wasIdle = stageFrames <= 0;
             stageFrames = Math.max(stageFrames, frames || 30);
-            if (wasIdle) requestAnimationFrame(stageLoop);
+            if (wasIdle) {
+                lastStageTime = 0;
+                requestAnimationFrame(stageLoop);
+            }
         }
-        function stageLoop() {
+        function stageLoop(time) {
+            if (lastStageTime) window.CARSCAN_QUALITY.frame(time - lastStageTime);
+            lastStageTime = time;
             updateStage();
             if (--stageFrames > 0) requestAnimationFrame(stageLoop);
             else clampTags();
@@ -669,12 +706,27 @@
         function applyParts() {
             if (!originalMaterials) return;
             const visible = parts.fuel == null ? fuelSlices : Math.ceil(parts.fuel * fuelSlices - 0.01);
-            const key = [xrayEnabled, parts.engine.toFixed(2), parts.exhaust.toFixed(2), visible, themeId].join('|');
+            const q = (v, step) => Math.round(v / step) * step;
+            // Вне рентгена свечения нет — изменения температуры и нагрузки не требуют перерисовки
+            const engineHeat = xrayEnabled ? q(parts.engine, 0.05) : 0;
+            let exhaustHeat = xrayEnabled ? q(parts.exhaust, 0.1) : 0;
+            const now = performance.now();
+            if (Math.abs(exhaustHeat - shownExhaust) > 0.001) {
+                const wait = EXHAUST_PERIOD_MS - (now - exhaustAt);
+                if (wait > 0 && xrayEnabled && shownExhaust > 0) {
+                    exhaustHeat = shownExhaust;
+                    if (!exhaustTimer) exhaustTimer = setTimeout(() => { exhaustTimer = null; applyParts(); }, wait);
+                } else {
+                    shownExhaust = exhaustHeat;
+                    exhaustAt = now;
+                }
+            }
+            const key = [xrayEnabled, engineHeat.toFixed(2), exhaustHeat.toFixed(2), visible, themeId].join('|');
             if (key === partsKey) return;
             partsKey = key;
             const glow = (rgb, k) => (xrayEnabled ? rgb.map((v) => (v / 255) * k) : [0, 0, 0]);
-            const engine = glow(heatRgb(parts.engine, 'thermal'), 0.38);
-            const exhaust = glow(heatRgb(parts.exhaust, 'thermal'), 0.6);
+            const engine = glow(heatRgb(engineHeat, 'thermal'), 0.38);
+            const exhaust = glow(heatRgb(exhaustHeat, 'thermal'), 0.6);
             const fuelRgb = heatRgb(parts.fuel ?? 0.6, 'level').map((v) => v / 255);
             for (const m of viewer.model.materials) {
                 if (ENGINE_MATERIALS.includes(m.name)) {

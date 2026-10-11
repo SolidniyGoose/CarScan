@@ -97,8 +97,6 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    // SceneView для 3D (используем версию, совместимую с Compose)
-    implementation("io.github.sceneview:sceneview:2.3.0") // Или sceneview-compose, когда он выйдет из беты
     // Koin для внедрения зависимостей (DI)
     implementation("io.insert-koin:koin-androidx-compose:3.5.3")
     implementation("io.insert-koin:koin-android:3.5.3")

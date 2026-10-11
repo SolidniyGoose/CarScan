@@ -150,7 +150,7 @@ class ObdTelemetrySource(
                 .flatMap { ObdDecode.supportedNumbers(0x00, it) }.toMutableSet()
             record(first, "${result.size} PID в диапазоне 01–20", replaceLast = true)
             var base = Pid.SUPPORTED_21_40
-            while (base <= Pid.SUPPORTED_41_60 && base in result) {
+            while (base <= Pid.SUPPORTED_A1_C0 && base in result) {
                 val r = elm.send(String.format(Locale.US, "01%02X", base))
                 val found = if (r.ok) ObdParser.mode01All(r.lines, base).flatMap { ObdDecode.supportedNumbers(base, it) } else emptyList()
                 record(r, "${found.size} PID в диапазоне ${hex(base + 1)}–${hex(base + 0x20)}")
@@ -428,6 +428,9 @@ class ObdTelemetrySource(
             Probe(0x33, "Атм. давление", 70.0..110.0, " кПа") { d -> d.firstOrNull()?.toDouble() },
             Probe(0x5C, "Темп. масла двигателя", -40.0..160.0, " °C") { t(it) },
             Probe(0x51, "Тип топлива (код)", null, "") { d -> d.firstOrNull()?.toDouble() },
+            Probe(Pid.ODOMETER, "Пробег (одометр)", 0.0..2_000_000.0, " км", 1) { d ->
+                if (d.size >= 4) ((d[0].toLong() shl 24) + (d[1] shl 16) + (d[2] shl 8) + d[3]) / 10.0 else null
+            },
         )
 
         private fun hex(n: Int) = String.format(Locale.US, "%02X", n)

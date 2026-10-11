@@ -255,4 +255,22 @@ class ObdTelemetrySourceTest {
         }
         assertEquals("проверка при подключении и по запросу", 2, elm.commands.count { it == "ATH1" })
     }
+
+    @Test
+    fun `маски поддерживаемых PID читаются до C0 и пробег попадает в проверку`() = runBlocking {
+        val car = gasolineCar + mapOf(
+            "0140" to "41 40 " + mask(0x40, 0x46, 0x60),
+            "0160" to "41 60 " + mask(0x60, 0x80),
+            "0180" to "41 80 " + mask(0x80, 0xA0),
+            "01A0" to "41 A0 " + mask(0xA0, 0xA6),
+            "01A6" to "41 A6 00 1E 84 85", // 2 000 005 → 200 000.5 км
+        )
+        val source = ObdTelemetrySource({ VehicleProfile() }) { FakeElm327(car) }
+        source.samples().first()
+        val info = source.connection.value
+        assertTrue(0xA6 in info.supportedPids)
+        val odometer = info.selfTest.single { it.command == "01A6" }
+        assertEquals(ProbeVerdict.OK, odometer.verdict)
+        assertEquals("200000.5 км", odometer.decoded)
+    }
 }
