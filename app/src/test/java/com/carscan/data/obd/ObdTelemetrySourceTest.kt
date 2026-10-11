@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -24,7 +25,8 @@ import java.util.Locale
  * с эхом до ATE0, «SEARCHING...», приглашением ">" и «NO DATA» на неподдерживаемые PID.
  */
 private class FakeElm327(private val car: Map<String, String>) : ObdTransport {
-    val commands = mutableListOf<String>()
+    // Пишет поток опроса, читает тест — список должен быть потокобезопасным
+    val commands: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
     private val pending = ArrayDeque<Byte>()
     private val lock = Any()
     private var echo = true
@@ -240,9 +242,16 @@ class ObdTelemetrySourceTest {
     fun `повторная проверка по запросу во время поездки`() = runBlocking {
         val elm = FakeElm327(gasolineCar)
         val source = ObdTelemetrySource({ VehicleProfile() }) { elm }
-        var n = 0
-        source.samples().take(3).collect {
-            if (n++ == 0) source.requestSelfTest()
+        var requested = false
+        // Опрос идёт в своём потоке и может обгонять сбор на несколько снимков — ждём, а не считаем снимки
+        withTimeout(10_000) {
+            source.samples().first {
+                if (!requested) {
+                    requested = true
+                    source.requestSelfTest()
+                }
+                elm.commands.count { it == "ATH1" } >= 2
+            }
         }
         assertEquals("проверка при подключении и по запросу", 2, elm.commands.count { it == "ATH1" })
     }
