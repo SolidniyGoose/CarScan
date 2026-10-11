@@ -39,6 +39,9 @@ jobs:
           CARSCAN_KEYSTORE_PASSWORD: ${{ secrets.CARSCAN_KEYSTORE_PASSWORD }}
           CARSCAN_KEY_ALIAS: ${{ secrets.CARSCAN_KEY_ALIAS }}
           CARSCAN_KEY_PASSWORD: ${{ secrets.CARSCAN_KEY_PASSWORD }}
+          # Необязательно: бот для отчётов диагностики (docs/DEBUG_REPORT.md)
+          CARSCAN_TG_BOT_TOKEN: ${{ secrets.CARSCAN_TG_BOT_TOKEN }}
+          CARSCAN_TG_CHAT_ID: ${{ secrets.CARSCAN_TG_CHAT_ID }}
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease testDebugUnitTest -PappVersion="${GITHUB_REF_NAME#v}" --no-daemon

@@ -19,4 +19,6 @@ keystore.properties
 *.jks
 *.keystore
 *.jks.base64.txt
+# Токен Telegram-бота для отчётов диагностики
+telegram.properties
 .kotlin

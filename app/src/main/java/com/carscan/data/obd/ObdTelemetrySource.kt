@@ -5,6 +5,8 @@ import com.carscan.data.ConnectionState
 import com.carscan.data.ExtendedPid
 import com.carscan.data.FuelType
 import com.carscan.data.ObdLogEntry
+import com.carscan.data.ProbeVerdict
+import com.carscan.data.SensorProbe
 import com.carscan.data.TelemetrySource
 import com.carscan.data.VehicleProfile
 import com.carscan.data.VehicleTelemetry
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToInt
 
 /**
@@ -38,6 +41,10 @@ class ObdTelemetrySource(
     private val _connection = MutableStateFlow(ConnectionInfo())
     override val connection: StateFlow<ConnectionInfo> = _connection.asStateFlow()
 
+    private val selfTestRequested = AtomicBoolean(false)
+
+    override fun requestSelfTest() = selfTestRequested.set(true)
+
     override fun samples(): Flow<VehicleTelemetry> = flow {
         _connection.value = ConnectionInfo(ConnectionState.CONNECTING, "Подключение к адаптеру…")
         val transport = try {
@@ -51,7 +58,9 @@ class ObdTelemetrySource(
         try {
             val session = Session(Elm327(transport.input, transport.output))
             session.initialize()
+            session.selfTest()
             while (true) {
+                if (selfTestRequested.getAndSet(false)) session.selfTest()
                 emit(session.poll())
                 _connection.update { it.copy(log = session.logSnapshot()) }
             }
@@ -73,7 +82,7 @@ class ObdTelemetrySource(
 
     private inner class Session(private val elm: Elm327) {
         private val log = ArrayDeque<ObdLogEntry>()
-        private var supported: Set<Int> = emptySet()
+        private var supported: MutableSet<Int> = mutableSetOf()
         private val noDataCount = mutableMapOf<Int, Int>()
         private val disabled = mutableSetOf<Int>()
         private var protocol: Int? = null
@@ -136,7 +145,7 @@ class ObdTelemetrySource(
             }
         }
 
-        private suspend fun discoverSupported(first: ElmResponse): Set<Int> {
+        private suspend fun discoverSupported(first: ElmResponse): MutableSet<Int> {
             val result = ObdParser.mode01All(first.lines, Pid.SUPPORTED_01_20)
                 .flatMap { ObdDecode.supportedNumbers(0x00, it) }.toMutableSet()
             record(first, "${result.size} PID в диапазоне 01–20", replaceLast = true)
@@ -163,6 +172,94 @@ class ObdTelemetrySource(
         }
 
         private val isCan: Boolean get() = protocol in 6..9
+
+        /**
+         * Каждый нужный PID запрашивается напрямую, даже если ЭБУ его не заявил: так видно,
+         * почему на экране «—». PID, который ответил без заявления, дальше опрашивается как обычно.
+         */
+        suspend fun selfTest() {
+            status(ConnectionState.CONNECTED, "Проверка датчиков…")
+            val declaredMask = supported.toSet()
+            val probes = PROBES.map { probe ->
+                val command = String.format(Locale.US, "01%02X", probe.pid)
+                val declared = probe.pid in declaredMask
+                val r = elm.send(command, PROBE_TIMEOUT_MS)
+                val response = r.error ?: r.lines.joinToString(" | ")
+                val data = if (r.ok) ObdParser.mode01(r.lines, probe.pid) else null
+                val value = data?.let { runCatching { probe.decode(it) }.getOrNull() }
+                record(r, value?.let { "${probe.format(it)} (проверка)" })
+                val verdict = when {
+                    value == null && !declared -> ProbeVerdict.NOT_SUPPORTED
+                    value == null -> if (r.isNoData || data != null) ProbeVerdict.NO_DATA else ProbeVerdict.ERROR
+                    !declared -> ProbeVerdict.UNDECLARED
+                    probe.range != null && value !in probe.range -> ProbeVerdict.SUSPICIOUS
+                    else -> ProbeVerdict.OK
+                }
+                if (value != null) {
+                    // Ответил — значит, можно опрашивать (и снова, если раньше отключили после NO DATA)
+                    supported += probe.pid
+                    disabled -= probe.pid
+                    noDataCount -= probe.pid
+                }
+                SensorProbe(
+                    name = probe.name,
+                    command = command,
+                    declared = declared,
+                    response = response,
+                    decoded = value?.let(probe.format),
+                    verdict = verdict,
+                    note = probe.range?.takeIf { verdict == ProbeVerdict.SUSPICIOUS }
+                        ?.let { "ожидается ${probe.format(it.start)}…${probe.format(it.endInclusive)}" },
+                )
+            } + adapterVoltageProbe() + headerProbes()
+            _connection.update {
+                it.copy(
+                    state = ConnectionState.CONNECTED,
+                    message = "Подключено",
+                    supportedPids = supported.toSet(),
+                    selfTest = probes,
+                    selfTestAtMs = System.currentTimeMillis(),
+                    log = logSnapshot(),
+                )
+            }
+        }
+
+        private suspend fun adapterVoltageProbe(): SensorProbe {
+            val r = elm.send("ATRV")
+            val volts = r.lines.firstOrNull()?.let(ObdDecode::adapterVoltage)
+            record(r, volts?.let { String.format(Locale.US, "%.1f V (проверка)", it) })
+            return SensorProbe(
+                name = "Напряжение (адаптер)",
+                command = "ATRV",
+                declared = null,
+                response = r.error ?: r.lines.joinToString(" | "),
+                decoded = volts?.let { String.format(Locale.US, "%.2f V", it) },
+                verdict = when {
+                    volts == null -> ProbeVerdict.ERROR
+                    volts !in 9.0..16.0 -> ProbeVerdict.SUSPICIOUS
+                    else -> ProbeVerdict.OK
+                },
+            )
+        }
+
+        /** Какие блоки отвечают (с заголовками): видно, от кого приходит уровень топлива и есть ли он вообще. */
+        private suspend fun headerProbes(): List<SensorProbe> = try {
+            send("ATH1")
+            listOf("0100", "012F").map { command ->
+                val r = elm.send(command, PROBE_TIMEOUT_MS)
+                record(r, "с заголовками")
+                SensorProbe(
+                    name = "Ответившие блоки ($command)",
+                    command = "ATH1 $command",
+                    declared = null,
+                    response = r.error ?: r.lines.joinToString(" | "),
+                    decoded = null,
+                    verdict = if (r.ok) ProbeVerdict.OK else ProbeVerdict.NO_DATA,
+                )
+            }
+        } finally {
+            send("ATH0")
+        }
 
         suspend fun poll(): VehicleTelemetry {
             val c = cycle++
@@ -294,8 +391,44 @@ class ObdTelemetrySource(
         }
     }
 
+    /** PID для проверки: [range] — правдоподобные значения, вне них — «подозрительно». */
+    private class Probe(
+        val pid: Int,
+        val name: String,
+        val range: ClosedFloatingPointRange<Double>?,
+        val unit: String,
+        val digits: Int = 0,
+        val decode: (IntArray) -> Double?,
+    ) {
+        val format: (Double) -> String = { String.format(Locale.US, "%.${digits}f", it) + unit }
+    }
+
     companion object {
-        private const val LOG_SIZE = 60
+        private const val LOG_SIZE = 80
+        private const val PROBE_TIMEOUT_MS = 3_000L
+
+        private fun t(d: IntArray) = ObdDecode.temperature(d)?.toDouble()
+
+        private val PROBES = listOf(
+            Probe(Pid.RPM, "Обороты", 0.0..8000.0, " об/мин") { ObdDecode.rpm(it) },
+            Probe(Pid.SPEED, "Скорость", 0.0..260.0, " км/ч") { ObdDecode.speed(it)?.toDouble() },
+            Probe(Pid.ENGINE_LOAD, "Нагрузка", 0.0..100.0, " %", 1) { ObdDecode.engineLoad(it) },
+            Probe(Pid.COOLANT_TEMP, "Темп. ОЖ", -40.0..130.0, " °C") { t(it) },
+            Probe(Pid.FUEL_LEVEL, "Уровень топлива", 0.5..100.0, " %", 1) { ObdDecode.fuelLevel(it) },
+            Probe(Pid.FUEL_RATE, "Расход (PID 5E)", 0.0..80.0, " л/ч", 2) { ObdDecode.fuelRate(it) },
+            Probe(Pid.MAF, "Расход воздуха MAF", 0.0..400.0, " г/с", 2) { ObdDecode.maf(it) },
+            Probe(Pid.INTAKE_PRESSURE, "Давление во впуске", 10.0..255.0, " кПа") { ObdDecode.intakePressure(it)?.toDouble() },
+            Probe(Pid.INTAKE_AIR_TEMP, "Темп. впуска", -40.0..90.0, " °C") { t(it) },
+            Probe(Pid.AMBIENT_AIR_TEMP, "Темп. наружного воздуха", -45.0..60.0, " °C") { t(it) },
+            Probe(Pid.MODULE_VOLTAGE, "Напряжение ЭБУ", 9.0..16.0, " V", 2) { ObdDecode.moduleVoltage(it) },
+            Probe(Pid.SHORT_TERM_FUEL_TRIM, "Кратк. коррекция", -30.0..30.0, " %", 1) { ObdDecode.fuelTrim(it) },
+            Probe(Pid.LONG_TERM_FUEL_TRIM, "Долг. коррекция", -30.0..30.0, " %", 1) { ObdDecode.fuelTrim(it) },
+            Probe(Pid.MONITOR_STATUS, "Check Engine / DTC", null, " DTC") { d -> ObdDecode.monitorStatus(d)?.dtcCount?.toDouble() },
+            Probe(Pid.FUEL_SYSTEM_STATUS, "Топливная система", null, "") { d -> d.firstOrNull()?.toDouble() },
+            Probe(0x33, "Атм. давление", 70.0..110.0, " кПа") { d -> d.firstOrNull()?.toDouble() },
+            Probe(0x5C, "Темп. масла двигателя", -40.0..160.0, " °C") { t(it) },
+            Probe(0x51, "Тип топлива (код)", null, "") { d -> d.firstOrNull()?.toDouble() },
+        )
 
         private fun hex(n: Int) = String.format(Locale.US, "%02X", n)
 

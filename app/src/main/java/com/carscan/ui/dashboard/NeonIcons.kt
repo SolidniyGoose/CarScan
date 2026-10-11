@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 
 enum class NeonIconKind {
     CAR, GAUGE, PULSE, LEAF, DOTS, POWER, PIN, CLOCK, CLOSE, CHEVRON_DOWN, CHEVRON_RIGHT,
-    FOCUS, XRAY, THERMO, BATTERY, FUEL, ENGINE, CLOUD, SUN, REFRESH, CHEVRON_LEFT, MINUS, PLUS, DOWNLOAD,
+    FOCUS, XRAY, THERMO, BATTERY, FUEL, ENGINE, CLOUD, SUN, REFRESH, CHEVRON_LEFT, MINUS, PLUS, DOWNLOAD, SEND,
 }
 
 /**
@@ -95,6 +95,11 @@ fun NeonIcon(kind: NeonIconKind, tint: Color, modifier: Modifier = Modifier, siz
                 line(12f, 4f, 12f, 15f)
                 poly(7f, 10.5f, 12f, 15.5f, 17f, 10.5f)
                 line(5f, 20f, 19f, 20f)
+            }
+            NeonIconKind.SEND -> {
+                // Бумажный самолётик
+                poly(3f, 11f, 21f, 3f, 14f, 21f, 11f, 13f, 3f, 11f)
+                line(11f, 13f, 21f, 3f)
             }
             NeonIconKind.PLUS -> {
                 line(6f, 12f, 18f, 12f)

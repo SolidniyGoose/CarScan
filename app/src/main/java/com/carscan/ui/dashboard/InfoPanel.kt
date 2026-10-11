@@ -157,6 +157,9 @@ private fun ActionButton(action: PanelAction, xrayEnabled: Boolean, modifier: Mo
         PanelAction.RESET_VEHICLE -> NeonIconKind.REFRESH to "Сбросить"
         PanelAction.CHECK_UPDATES -> NeonIconKind.REFRESH to "Проверить"
         PanelAction.INSTALL_UPDATE -> NeonIconKind.DOWNLOAD to "Обновить"
+        PanelAction.SELF_TEST -> NeonIconKind.PULSE to "Проверить датчики"
+        PanelAction.SEND_REPORT -> NeonIconKind.SEND to "Отправить отчёт"
+        PanelAction.SHARE_REPORT -> NeonIconKind.SEND to "Поделиться"
     }
     PanelButton(icon, label, modifier) { onAction(action) }
 }

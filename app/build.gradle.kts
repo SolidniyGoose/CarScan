@@ -18,6 +18,14 @@ val keystoreProperties = Properties().apply {
 }
 fun signingValue(property: String, env: String): String? = System.getenv(env) ?: keystoreProperties.getProperty(property)
 
+// Telegram-бот для отчётов диагностики: telegram.properties (локально, не в git) или секреты GitHub. См. docs/DEBUG_REPORT.md
+val telegramProperties = Properties().apply {
+    rootProject.file("telegram.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun telegramValue(property: String, env: String): String =
+    (System.getenv(env)?.takeIf { it.isNotBlank() } ?: telegramProperties.getProperty(property) ?: "").trim()
+        .replace("\\", "\\\\").replace("\"", "\\\"")
+
 android {
     namespace = "com.carscan"
     compileSdk {
@@ -32,6 +40,9 @@ android {
         versionName = appVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "TG_BOT_TOKEN", "\"${telegramValue("botToken", "CARSCAN_TG_BOT_TOKEN")}\"")
+        buildConfigField("String", "TG_CHAT_ID", "\"${telegramValue("chatId", "CARSCAN_TG_CHAT_ID")}\"")
     }
 
     val releaseKeyFile = signingValue("storeFile", "CARSCAN_KEYSTORE")
@@ -63,6 +74,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

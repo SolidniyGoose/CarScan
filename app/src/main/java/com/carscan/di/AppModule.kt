@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import com.carscan.data.SettingsRepository
 import com.carscan.data.SimulatedTelemetrySource
+import com.carscan.data.TelegramReporter
 import com.carscan.data.TelemetrySource
 import com.carscan.data.UpdateRepository
 import com.carscan.data.VehicleCatalog
@@ -48,6 +49,9 @@ val appModule = module {
     // Обновления приложения из GitHub Releases
     single { UpdateRepository(androidContext()) }
 
+    // Отчёты диагностики в Telegram-бот (если токен задан при сборке)
+    single { TelegramReporter() }
+
     viewModel {
         com.carscan.ui.MainViewModel(
             simulator = get(named(SIMULATOR)),
@@ -57,6 +61,7 @@ val appModule = module {
             bluetooth = get(),
             vehicles = get(),
             updates = get(),
+            telegram = get(),
         )
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import com.carscan.data.ConnectionState
 import com.carscan.data.DataSourceType
 import com.carscan.data.FuelType
+import com.carscan.data.ProbeVerdict
 import com.carscan.data.UpdateRepository
 import com.carscan.data.WeatherRepository
 import com.carscan.ui.theme.Palettes
@@ -59,6 +60,7 @@ enum class ChoiceGroup { DATA_SOURCE, OBD_DEVICE, THEME, VIEW_MODE, FUEL_TYPE, V
 enum class PanelAction {
     XRAY, FOCUS, REFRESH_WEATHER, RESET_TRIP, OBD_LOG, REFRESH_DEVICES, BACK_TO_SETTINGS,
     PICK_VEHICLE, PICKER_BACK, RESET_VEHICLE, CHECK_UPDATES, INSTALL_UPDATE,
+    SELF_TEST, SEND_REPORT, SHARE_REPORT,
 }
 
 object PanelContent {
@@ -278,6 +280,7 @@ object PanelContent {
             closable = true,
             sections = listOf(
                 vehicleSection(s),
+                diagnosticsSection(s),
                 updateSection(s),
                 PanelSection(
                     "Источник данных",
@@ -369,6 +372,41 @@ object PanelContent {
             actions = listOfNotNull(PanelAction.PICK_VEHICLE, PanelAction.RESET_VEHICLE.takeIf { o.hasVehicleOverrides }),
             text = "Бак нужен для пересчёта % в литры. Объём двигателя, тип топлива и коэффициент наполнения — " +
                 "для расчёта расхода, если у машины нет датчика MAF. Значения, изменённые вручную, отмечены «•».",
+        )
+    }
+
+    private fun diagnosticsSection(s: DashboardState): PanelSection {
+        val d = s.diagnostics
+        val probes = s.connection.selfTest
+        val bad = probes.count { it.verdict != ProbeVerdict.OK }
+        return PanelSection(
+            "Отладка",
+            rows = listOfNotNull(
+                PanelRow(
+                    "Telegram-бот",
+                    if (d.telegramConfigured) "Настроен" else "Не настроен",
+                    if (d.telegramConfigured) StatusLevel.OK else StatusLevel.OFF,
+                ),
+                PanelRow(
+                    "Проверка датчиков",
+                    when {
+                        probes.isEmpty() -> NO_VALUE
+                        bad == 0 -> "Все ${probes.size} в порядке"
+                        else -> "Замечаний: $bad из ${probes.size}"
+                    },
+                    when {
+                        probes.isEmpty() -> null
+                        bad == 0 -> StatusLevel.OK
+                        else -> StatusLevel.WARN
+                    },
+                ),
+                d.message?.let { PanelRow("Статус", it, if (d.isError) StatusLevel.WARN else StatusLevel.OK) },
+            ),
+            actions = if (d.busy) emptyList() else listOf(PanelAction.SEND_REPORT, PanelAction.SELF_TEST, PanelAction.SHARE_REPORT),
+            text = "Отчёт: проверка всех датчиков, текущие показания, почему пустые значения пустые, погода " +
+                "и история поездки. Его можно отправить в любой момент, в том числе на ходу. " +
+                if (d.telegramConfigured) "Отчёт уходит файлом в ваш Telegram-бот." else "Без бота — через «Поделиться».",
+            expanded = d.message != null,
         )
     }
 
@@ -475,9 +513,25 @@ object PanelContent {
             caption = "ДИАГНОСТИКА АДАПТЕРА",
             title = "Журнал OBD",
             chip = s.dataSourceName,
-            actions = listOf(PanelAction.BACK_TO_SETTINGS),
+            actions = listOf(PanelAction.BACK_TO_SETTINGS, PanelAction.SELF_TEST, PanelAction.SEND_REPORT),
             closable = true,
             sections = listOf(
+                PanelSection(
+                    "Проверка датчиков",
+                    rows = c.selfTest.map { probe ->
+                        PanelRow(
+                            probe.name,
+                            probe.decoded?.let { "$it · ${probe.verdict.label}" } ?: probe.verdict.label,
+                            when (probe.verdict) {
+                                ProbeVerdict.OK -> StatusLevel.OK
+                                ProbeVerdict.UNDECLARED -> StatusLevel.INFO
+                                ProbeVerdict.SUSPICIOUS, ProbeVerdict.NO_DATA -> StatusLevel.WARN
+                                ProbeVerdict.NOT_SUPPORTED -> StatusLevel.OFF
+                                ProbeVerdict.ERROR -> StatusLevel.CRIT
+                            },
+                        )
+                    }.ifEmpty { listOf(PanelRow("Результат", "Появится после подключения")) },
+                ),
                 PanelSection(
                     "Подключение",
                     listOf(

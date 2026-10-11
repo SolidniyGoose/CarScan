@@ -3,6 +3,7 @@ package com.carscan.data.obd
 import com.carscan.data.ConnectionState
 import com.carscan.data.ExtendedPid
 import com.carscan.data.FuelType
+import com.carscan.data.ProbeVerdict
 import com.carscan.data.VehicleProfile
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
@@ -59,6 +60,9 @@ private class FakeElm327(private val car: Map<String, String>) : ObdTransport {
     override fun close() {
         closed = true
     }
+
+    /** Команды обычного опроса — после проверки датчиков (она заканчивается на ATH0). */
+    val pollCommands: List<String> get() = commands.drop(commands.lastIndexOf("ATH0") + 1)
 }
 
 private fun mask(base: Int, vararg pids: Int): String {
@@ -139,8 +143,8 @@ class ObdTelemetrySourceTest {
     fun `неподдерживаемые PID не запрашиваются`() = runBlocking {
         val elm = FakeElm327(gasolineCar)
         ObdTelemetrySource({ VehicleProfile() }) { elm }.samples().take(25).toList()
-        assertFalse("015E не заявлен — не спрашиваем", "015E" in elm.commands)
-        assertFalse("0142 не нужен, AT RV работает", "0142" in elm.commands)
+        assertFalse("015E не заявлен — не спрашиваем", "015E" in elm.pollCommands)
+        assertFalse("0142 не нужен, AT RV работает", "0142" in elm.pollCommands)
         assertEquals("ATE0 до первого запроса данных", "ATE0", elm.commands[1])
     }
 
@@ -158,7 +162,7 @@ class ObdTelemetrySourceTest {
         // 3.18 г/с воздуха → 3.18 / 14.7 / 745 × 3600 ≈ 1.045 л/ч, с коррекцией -1.56 %
         assertEquals(1.045 * (1 - 0.0156), t.fuelRateLph!!, 0.01)
         assertEquals("MAP × 1.6 л", t.fuelRateMethod)
-        assertFalse("MAF не заявлен — не спрашиваем", "0110" in elm.commands)
+        assertFalse("MAF не заявлен — не спрашиваем", "0110" in elm.pollCommands)
     }
 
     @Test
@@ -211,5 +215,35 @@ class ObdTelemetrySourceTest {
         val rpm = source.connection.value.log.last { it.command == "010C" }
         assertEquals("410C1AF8", rpm.response.replace(" ", ""))
         assertEquals("1726 об/мин", rpm.decoded)
+    }
+
+    @Test
+    fun `проверка датчиков находит незаявленный уровень топлива и включает его опрос`() = runBlocking {
+        // ЭБУ не заявляет 2F в маске, но на прямой запрос отвечает (так бывает у части машин)
+        val car = gasolineCar + mapOf("0120" to "41 20 " + mask(0x20, 0x40))
+        val elm = FakeElm327(car)
+        val source = ObdTelemetrySource({ VehicleProfile() }) { elm }
+        val t = source.samples().take(21).toList().last()
+
+        val probes = source.connection.value.selfTest.associateBy { it.command }
+        assertEquals(ProbeVerdict.UNDECLARED, probes.getValue("012F").verdict)
+        assertEquals("50.2 %", probes.getValue("012F").decoded)
+        assertEquals(ProbeVerdict.OK, probes.getValue("010C").verdict)
+        assertEquals(ProbeVerdict.NOT_SUPPORTED, probes.getValue("015E").verdict)
+        assertEquals(ProbeVerdict.OK, probes.getValue("ATRV").verdict)
+        assertTrue(source.connection.value.selfTestAtMs > 0)
+        assertTrue("012F опрашивается после проверки", "012F" in elm.pollCommands)
+        assertEquals(50.2, t.fuelLevelPercent!!, 0.1)
+    }
+
+    @Test
+    fun `повторная проверка по запросу во время поездки`() = runBlocking {
+        val elm = FakeElm327(gasolineCar)
+        val source = ObdTelemetrySource({ VehicleProfile() }) { elm }
+        var n = 0
+        source.samples().take(3).collect {
+            if (n++ == 0) source.requestSelfTest()
+        }
+        assertEquals("проверка при подключении и по запросу", 2, elm.commands.count { it == "ATH1" })
     }
 }

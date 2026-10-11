@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -24,6 +25,7 @@ import com.carscan.ui.dashboard.CarScanDashboard
 import com.carscan.ui.theme.CarScanTheme
 import com.carscan.ui.theme.Palettes
 import kotlinx.coroutines.launch
+import java.io.File
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -70,6 +72,22 @@ class MainActivity : ComponentActivity() {
                         startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
                     }
                 }
+            }
+        }
+
+        // Отчёт диагностики → системное «Поделиться» (Telegram, почта, файлы)
+        lifecycleScope.launch {
+            viewModel.shareRequests.collect { report ->
+                val dir = File(cacheDir, "reports").apply { mkdirs() }
+                dir.listFiles()?.forEach { it.delete() }
+                val file = File(dir, report.fileName).apply { writeText(report.content) }
+                val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.updates", file)
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .putExtra(Intent.EXTRA_TEXT, report.summary)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                runCatching { startActivity(Intent.createChooser(send, "Отчёт CarScan")) }
             }
         }
 

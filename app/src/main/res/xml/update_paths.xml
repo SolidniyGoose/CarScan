@@ -2,4 +2,6 @@
 <!-- Папка в кэше приложения, куда скачиваются обновления (UpdateRepository) -->
 <paths>
     <cache-path name="updates" path="updates/" />
+    <!-- Отчёты диагностики для «Поделиться» -->
+    <cache-path name="reports" path="reports/" />
 </paths>
