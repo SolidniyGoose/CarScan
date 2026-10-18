@@ -136,10 +136,16 @@ object DiagnosticReport {
         missingValues(s).ifEmpty { listOf("все значения есть" to "") }
             .forEach { (name, reason) -> line("  $name" + if (reason.isNotEmpty()) " — $reason" else "") }
 
+        header("Обновления")
+        row("Установлена", s.update.installedVersion)
+        row("На GitHub", s.update.latest?.version)
+        row("Последнее сообщение", s.update.message?.let { (if (s.update.isError) "[ошибка] " else "") + it })
+
         header("Погода")
         val w = s.weather.current
         row("Показано на экране", s.outsideTempC?.let { signed(it) + if (w != null) " (интернет)" else " (датчик ТС)" })
-        row("Open-Meteo", w?.let { "${signed(it.temperatureC)}, код ${it.weatherCode}" })
+        row("Интернет", w?.let { "${signed(it.temperatureC)}, код ${it.weatherCode} (${it.provider})" })
+        row("Датчик ТС: сырой / фильтр", "${t.ambientAirTemp?.let { signed(it.toDouble()) } ?: NO_VALUE} / ${s.ambientTempC?.let { signed(it) } ?: NO_VALUE}")
         row("Место", w?.let { listOfNotNull(it.place, it.locationSource.label).joinToString(" · ") })
         row("Обновлено", w?.let { time(it.fetchedAtMs, env.timeZone, "dd.MM HH:mm") })
         row("Ошибка", s.weather.error ?: "нет")
@@ -167,6 +173,14 @@ object DiagnosticReport {
                     ).joinToString(" "),
                 )
             }
+        }
+
+        c.deepScan?.let { scan ->
+            header("Глубокое сканирование (" + time(scan.atMs, env.timeZone, "dd.MM HH:mm:ss") + ")")
+            row("Ответов с данными", scan.entries.size)
+            row("Отказов / без ответа", "${scan.rejected} / ${scan.silent}")
+            scan.notes.forEach { line("  $it") }
+            scan.entries.forEach { e -> line("  ${e.header} ${e.command} → ${e.data}") }
         }
 
         header("Журнал OBD (последние ${c.log.size}, старые сверху)")
@@ -212,7 +226,12 @@ object DiagnosticReport {
         if (t.atfTemp == null) result += "Темп. АКПП" to "в стандартном OBD-II нет, команда производителя не задана"
         if (t.cabinTemp == null) result += "Темп. салона" to "в стандартном OBD-II нет, команда производителя не задана"
         if (t.ambientAirTemp == null) result += "Темп. наружная (ТС)" to pidReason(Pid.AMBIENT_AIR_TEMP)
-        if (s.outsideTempC == null) result += "Темп. на улице" to (s.weather.error ?: "нет ни интернета, ни датчика ТС")
+        if (s.outsideTempC == null) {
+            result += "Темп. на улице" to listOfNotNull(
+                s.weather.error,
+                if (t.ambientAirTemp != null) "датчик ТС (${t.ambientAirTemp} °C) не принят: на месте его греет двигатель, нужна езда от 30 км/ч" else "датчика ТС нет",
+            ).joinToString("; ")
+        }
         return result
     }
 

@@ -60,7 +60,7 @@ enum class ChoiceGroup { DATA_SOURCE, OBD_DEVICE, THEME, VIEW_MODE, FUEL_TYPE, V
 enum class PanelAction {
     XRAY, FOCUS, REFRESH_WEATHER, RESET_TRIP, OBD_LOG, REFRESH_DEVICES, BACK_TO_SETTINGS,
     PICK_VEHICLE, PICKER_BACK, RESET_VEHICLE, CHECK_UPDATES, INSTALL_UPDATE,
-    SELF_TEST, SEND_REPORT, SHARE_REPORT,
+    SELF_TEST, SEND_REPORT, SHARE_REPORT, DEEP_SCAN,
 }
 
 object PanelContent {
@@ -251,7 +251,8 @@ object PanelContent {
                     PanelRow("Местоположение", w?.let { listOfNotNull(it.place, it.locationSource.label).joinToString(" · ") } ?: NO_VALUE),
                     PanelRow("Обновлено", w?.let { timeOf(it.fetchedAtMs) } ?: (s.weather.error ?: NO_VALUE)),
                     PanelRow("Датчик ТС (улица)", signedTemp(t.ambientAirTemp?.toDouble())),
-                ) to "Уличная температура берётся из интернета (Open-Meteo) по местоположению устройства и обновляется раз в 15 минут. Температура салона читается с датчика климат-контроля."
+                ) to "Уличная температура берётся из интернета (Open-Meteo, запасной — MET Norway) по местоположению устройства и обновляется раз в 15 минут. " +
+                    "Без интернета — датчик машины: на стоянке его греет двигатель, поэтому ему доверяем только в движении. Температура салона читается с датчика климат-контроля."
             }
             CarNode.EXHAUST -> listOf(statusRow) + t.readiness.map {
                 PanelRow(it.name, if (it.passed) "Пройден" else "Не пройден", if (it.passed) StatusLevel.OK else StatusLevel.CRIT)
@@ -330,7 +331,7 @@ object PanelContent {
                 PanelSection(
                     "Погода",
                     listOf(
-                        PanelRow("Сервис", "Open-Meteo"),
+                        PanelRow("Сервис", w.current?.provider ?: "Open-Meteo / MET Norway"),
                         PanelRow(
                             "Местоположение",
                             w.current?.let { listOfNotNull(it.place, it.locationSource.label).joinToString(" · ") } ?: NO_VALUE,
@@ -402,10 +403,12 @@ object PanelContent {
                 ),
                 d.message?.let { PanelRow("Статус", it, if (d.isError) StatusLevel.WARN else StatusLevel.OK) },
             ),
-            actions = if (d.busy) emptyList() else listOf(PanelAction.SEND_REPORT, PanelAction.SELF_TEST, PanelAction.SHARE_REPORT),
+            actions = if (d.busy) emptyList() else listOf(PanelAction.SEND_REPORT, PanelAction.SELF_TEST, PanelAction.DEEP_SCAN, PanelAction.SHARE_REPORT),
             text = "Отчёт: проверка всех датчиков, текущие показания, почему пустые значения пустые, погода " +
                 "и история поездки. Его можно отправить в любой момент, в том числе на ходу. " +
-                if (d.telegramConfigured) "Отчёт уходит файлом в ваш Telegram-бот." else "Без бота — через «Поделиться».",
+                (if (d.telegramConfigured) "Отчёт уходит файлом в ваш Telegram-бот. " else "Без бота — через «Поделиться». ") +
+                "«Глубокий скан» (≈2 мин, лучше на стоянке с заведённым двигателем) читает все внутренние параметры двигателя и коробки — " +
+                "так ищутся уровень топлива и температура вариатора, если машина не отдаёт их по стандарту.",
             expanded = d.message != null,
         )
     }
@@ -576,7 +579,7 @@ object PanelContent {
 
     private fun outsideSourceSuffix(s: DashboardState): String = when {
         s.weather.current != null -> " (интернет)"
-        s.telemetry.ambientAirTemp != null -> " (датчик ТС)"
+        s.ambientTempC != null -> " (датчик ТС)"
         else -> ""
     }
 

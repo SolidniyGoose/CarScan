@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.carscan.bluetooth.BluetoothManager
 import com.carscan.bluetooth.PairedDevice
 import com.carscan.data.AppRelease
+import com.carscan.data.AmbientTempFilter
 import com.carscan.data.AppSettings
 import com.carscan.data.ConnectionInfo
 import com.carscan.data.ConnectionState
@@ -101,6 +102,8 @@ data class DashboardState(
     val vehiclePicker: VehiclePickerState = VehiclePickerState(),
     val update: UpdateState = UpdateState(),
     val diagnostics: DiagnosticsState = DiagnosticsState(),
+    /** Датчик наружного воздуха ТС после фильтра нагрева от двигателя ([AmbientTempFilter]). */
+    val ambientTempC: Double? = null,
 ) {
     val xrayMode: Boolean get() = settings.xray
     val dataSourceName: String get() = settings.dataSource.title
@@ -116,9 +119,9 @@ data class DashboardState(
             return liters / avg * 100.0
         }
 
-    /** Улица: приоритет у интернета, запасной вариант — датчик наружного воздуха ТС (PID 0146). */
+    /** Улица: приоритет у интернета, запасной вариант — датчик наружного воздуха ТС (PID 0146) с фильтром. */
     val outsideTempC: Double?
-        get() = weather.current?.temperatureC ?: telemetry.ambientAirTemp?.toDouble()
+        get() = weather.current?.temperatureC ?: ambientTempC
 
     val nodeStatuses: List<NodeStatus>
         get() = CarNodes.evaluate(this)
@@ -182,6 +185,7 @@ class MainViewModel(
     private var lastHistoryMs = 0L
 
     private val tripComputer = TripComputer()
+    private val ambientFilter = AmbientTempFilter()
     private var streamJob: Job? = null
     private var weatherJob: Job? = null
 
@@ -304,7 +308,8 @@ class MainViewModel(
                     source.samples().collect { sample ->
                         val now = System.currentTimeMillis()
                         val trip = tripComputer.onSample(sample, now)
-                        _uiState.update { it.copy(telemetry = sample, trip = trip) }
+                        val ambient = ambientFilter.onSample(sample.ambientAirTemp, sample.speedKmh, sample.coolantTemp, now)
+                        _uiState.update { it.copy(telemetry = sample, trip = trip, ambientTempC = ambient) }
                         if (now - lastHistoryMs >= HISTORY_INTERVAL_MS) {
                             lastHistoryMs = now
                             history.addLast(TelemetrySnapshot(now, sample, trip, _uiState.value.fuelLiters))
@@ -417,17 +422,49 @@ class MainViewModel(
         reportJob = viewModelScope.launch {
             try {
                 if (rerunSelfTest) rerunSelfTest()
-                // Погода могла ещё не загрузиться после запуска — даём ей немного времени
-                withTimeoutOrNull(WEATHER_WAIT_MS) { uiState.first { !it.weather.loading } }
-                val (text, summary) = buildReport()
-                if (!telegram.isConfigured) {
-                    setDiagnostics { it.copy(message = "Бот не настроен — открываю «Поделиться»", isError = true) }
-                    _shareRequests.tryEmit(ShareRequest(reportFileName(), text, summary))
+                deliverReport(if (auto) "Авто · " else "")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                setDiagnostics { it.copy(message = "Не отправлено: ${e.message ?: "нет связи"}. Попробуйте «Поделиться»", isError = true) }
+            } finally {
+                setDiagnostics { it.copy(busy = false) }
+            }
+        }
+    }
+
+    /** Погода могла ещё не загрузиться — ждём немного; затем бот, а без него «Поделиться». */
+    private suspend fun deliverReport(captionPrefix: String) {
+        withTimeoutOrNull(WEATHER_WAIT_MS) { uiState.first { !it.weather.loading } }
+        val (text, summary) = buildReport()
+        if (!telegram.isConfigured) {
+            setDiagnostics { it.copy(message = "Бот не настроен — открываю «Поделиться»", isError = true) }
+            _shareRequests.tryEmit(ShareRequest(reportFileName(), text, summary))
+            return
+        }
+        setDiagnostics { it.copy(busy = true, message = "Отправка в Telegram…", isError = false) }
+        telegram.sendDocument(reportFileName(), text, captionPrefix + summary)
+        setDiagnostics { it.copy(message = "Отчёт отправлен в Telegram " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()), isError = false) }
+    }
+
+    /** Глубокое сканирование (около двух минут, телеметрия на это время замирает), затем отчёт. */
+    private fun deepScan() {
+        if (reportJob?.isActive == true) return
+        if (!obdConnected()) {
+            setDiagnostics { it.copy(message = "Сканирование доступно при подключении к ELM327", isError = true) }
+            return
+        }
+        reportJob = viewModelScope.launch {
+            try {
+                val before = _uiState.value.connection.deepScan?.atMs
+                obd.requestDeepScan()
+                setDiagnostics { it.copy(busy = true, message = "Глубокое сканирование… около 2 минут, показания на это время замрут", isError = false) }
+                val done = withTimeoutOrNull(DEEP_SCAN_TIMEOUT_MS) { uiState.first { it.connection.deepScan?.atMs.let { at -> at != null && at != before } } }
+                if (done == null) {
+                    setDiagnostics { it.copy(message = "Сканирование не завершилось (обрыв связи с адаптером?)", isError = true) }
                     return@launch
                 }
-                setDiagnostics { it.copy(busy = true, message = "Отправка в Telegram…", isError = false) }
-                telegram.sendDocument(reportFileName(), text, (if (auto) "Авто · " else "") + summary)
-                setDiagnostics { it.copy(message = "Отчёт отправлен в Telegram " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()), isError = false) }
+                deliverReport("Скан · ")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -534,6 +571,7 @@ class MainViewModel(
             PanelAction.SELF_TEST -> runSelfTest()
             PanelAction.SEND_REPORT -> sendReport(rerunSelfTest = true)
             PanelAction.SHARE_REPORT -> shareReport()
+            PanelAction.DEEP_SCAN -> deepScan()
             PanelAction.CHECK_UPDATES -> checkForUpdates()
             PanelAction.INSTALL_UPDATE -> downloadAndInstall()
             PanelAction.RESET_VEHICLE -> settingsRepository.update {
@@ -614,5 +652,6 @@ class MainViewModel(
         private const val HISTORY_SIZE = 90
         private const val SELF_TEST_TIMEOUT_MS = 60_000L
         private const val WEATHER_WAIT_MS = 25_000L
+        private const val DEEP_SCAN_TIMEOUT_MS = 6 * 60_000L
     }
 }

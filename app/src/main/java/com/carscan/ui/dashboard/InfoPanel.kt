@@ -160,6 +160,7 @@ private fun ActionButton(action: PanelAction, xrayEnabled: Boolean, modifier: Mo
         PanelAction.SELF_TEST -> NeonIconKind.PULSE to "Проверить датчики"
         PanelAction.SEND_REPORT -> NeonIconKind.SEND to "Отправить отчёт"
         PanelAction.SHARE_REPORT -> NeonIconKind.SEND to "Поделиться"
+        PanelAction.DEEP_SCAN -> NeonIconKind.FOCUS to "Глубокий скан"
     }
     PanelButton(icon, label, modifier) { onAction(action) }
 }

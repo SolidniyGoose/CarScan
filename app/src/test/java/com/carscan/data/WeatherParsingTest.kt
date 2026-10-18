@@ -42,4 +42,20 @@ class WeatherParsingTest {
         assertEquals("Снег", WeatherRepository.describeWeatherCode(73))
         assertEquals("—", WeatherRepository.describeWeatherCode(-1))
     }
+
+    @Test
+    fun `MET Norway - текущая температура и иконка погоды`() {
+        val body = """
+            {"type":"Feature","properties":{"timeseries":[
+              {"time":"2026-10-11T17:00:00Z","data":{"instant":{"details":{"air_temperature":11.3}},
+               "next_1_hours":{"summary":{"symbol_code":"partlycloudy_night"}}}},
+              {"time":"2026-10-11T18:00:00Z","data":{"instant":{"details":{"air_temperature":10.8}}}}]}}
+        """.trimIndent()
+        val conditions = WeatherRepository.parseMetNorway(body)
+        assertEquals(11.3, conditions.temperatureC, 0.0)
+        assertEquals("Переменная облачность", WeatherRepository.describeWeatherCode(conditions.weatherCode))
+        assertEquals("Ливень", WeatherRepository.describeWeatherCode(WeatherRepository.metSymbolToWmo("lightrainshowers_day")))
+        assertEquals("Снег", WeatherRepository.describeWeatherCode(WeatherRepository.metSymbolToWmo("heavysnow")))
+        assertEquals("Гроза", WeatherRepository.describeWeatherCode(WeatherRepository.metSymbolToWmo("rainandthunder")))
+    }
 }

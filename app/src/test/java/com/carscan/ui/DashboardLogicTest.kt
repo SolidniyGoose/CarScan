@@ -64,7 +64,9 @@ class DashboardLogicTest {
     @Test
     fun `улица берётся из интернета, а без него с датчика ТС`() {
         assertEquals(9.3, state.outsideTempC!!, 0.0)
-        assertEquals(7.0, state.copy(weather = WeatherState()).outsideTempC!!, 0.0)
+        // Без интернета — датчик ТС, но только принятый фильтром (на стоянке его греет двигатель)
+        assertEquals(7.0, state.copy(weather = WeatherState(), ambientTempC = 7.0).outsideTempC!!, 0.0)
+        assertEquals(null, state.copy(weather = WeatherState(), ambientTempC = null).outsideTempC)
     }
 
     @Test

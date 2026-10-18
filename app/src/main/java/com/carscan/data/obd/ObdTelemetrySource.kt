@@ -2,6 +2,8 @@ package com.carscan.data.obd
 
 import com.carscan.data.ConnectionInfo
 import com.carscan.data.ConnectionState
+import com.carscan.data.DeepScanEntry
+import com.carscan.data.DeepScanResult
 import com.carscan.data.ExtendedPid
 import com.carscan.data.FuelType
 import com.carscan.data.ObdLogEntry
@@ -45,6 +47,10 @@ class ObdTelemetrySource(
 
     override fun requestSelfTest() = selfTestRequested.set(true)
 
+    private val deepScanRequested = AtomicBoolean(false)
+
+    override fun requestDeepScan() = deepScanRequested.set(true)
+
     override fun samples(): Flow<VehicleTelemetry> = flow {
         _connection.value = ConnectionInfo(ConnectionState.CONNECTING, "Подключение к адаптеру…")
         val transport = try {
@@ -61,6 +67,7 @@ class ObdTelemetrySource(
             session.selfTest()
             while (true) {
                 if (selfTestRequested.getAndSet(false)) session.selfTest()
+                if (deepScanRequested.getAndSet(false)) session.deepScan()
                 emit(session.poll())
                 _connection.update { it.copy(log = session.logSnapshot()) }
             }
@@ -242,6 +249,62 @@ class ObdTelemetrySource(
             )
         }
 
+        /**
+         * Глубокое сканирование: служба 21 (ReadDataByLocalIdentifier) у двигателя и коробки, идентификаторы 01…FF.
+         * Только чтение. Опрос телеметрии на это время останавливается.
+         */
+        suspend fun deepScan() {
+            val started = System.currentTimeMillis()
+            if (!isCan) {
+                _connection.update {
+                    it.copy(deepScan = DeepScanResult(emptyList(), 0, 0, started, listOf("Протокол не CAN — сканирование не поддерживается")))
+                }
+                return
+            }
+            val entries = mutableListOf<DeepScanEntry>()
+            val notes = mutableListOf<String>()
+            var rejected = 0
+            var silent = 0
+            val total = DEEP_SCAN_HEADERS.size * 0xFF
+            try {
+                for ((h, header) in DEEP_SCAN_HEADERS.withIndex()) {
+                    send("ATSH$header")
+                    var notSupported = 0
+                    for (id in 0x01..0xFF) {
+                        val done = h * 0xFF + id
+                        if (id % 8 == 1) status(ConnectionState.CONNECTED, "Глубокое сканирование: блок $header, ${done * 100 / total} %")
+                        val command = String.format(Locale.US, "21%02X", id)
+                        val r = elm.send(command, PROBE_TIMEOUT_MS)
+                        val messages = if (r.ok) ObdParser.messages(r.lines) else emptyList()
+                        val positive = messages.firstOrNull { it.size >= 2 && it[0] == 0x61 && it[1] == id }
+                        when {
+                            positive != null -> entries += DeepScanEntry(header, command, ObdParser.toHex(positive.copyOfRange(2, positive.size)))
+                            messages.any { it.size >= 3 && it[0] == 0x7F && it[1] == 0x21 } -> {
+                                rejected++
+                                // 7F 21 11 — служба не поддерживается блоком вовсе: дальше спрашивать бессмысленно
+                                if (messages.any { it.size >= 3 && it[0] == 0x7F && it[2] == 0x11 } && ++notSupported >= 3) {
+                                    notes += "Блок $header не поддерживает службу 21"
+                                    break
+                                }
+                            }
+                            else -> silent++
+                        }
+                    }
+                }
+            } finally {
+                send("ATSH7DF") // функциональный адрес «всем ЭБУ»
+            }
+            notes += "Длительность ${(System.currentTimeMillis() - started) / 1000} с"
+            _connection.update {
+                it.copy(
+                    state = ConnectionState.CONNECTED,
+                    message = "Подключено",
+                    deepScan = DeepScanResult(entries, rejected, silent, System.currentTimeMillis(), notes),
+                    log = logSnapshot(),
+                )
+            }
+        }
+
         /** Какие блоки отвечают (с заголовками): видно, от кого приходит уровень топлива и есть ли он вообще. */
         private suspend fun headerProbes(): List<SensorProbe> = try {
             send("ATH1")
@@ -406,6 +469,9 @@ class ObdTelemetrySource(
     companion object {
         private const val LOG_SIZE = 80
         private const val PROBE_TIMEOUT_MS = 3_000L
+
+        /** Двигатель и коробка: на CAN 11 бит отвечают с 7E8 и 7E9 (так в отчёте с Outlander XL). */
+        private val DEEP_SCAN_HEADERS = listOf("7E0", "7E1")
 
         private fun t(d: IntArray) = ObdDecode.temperature(d)?.toDouble()
 

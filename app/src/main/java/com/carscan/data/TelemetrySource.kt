@@ -21,6 +21,9 @@ interface TelemetrySource {
 
     /** Повторить проверку датчиков ([ConnectionInfo.selfTest]) в текущем сеансе. Симулятору нечего проверять. */
     fun requestSelfTest() {}
+
+    /** Глубокое сканирование параметров производителя ([ConnectionInfo.deepScan]); около двух минут. */
+    fun requestDeepScan() {}
 }
 
 enum class ConnectionState { IDLE, CONNECTING, INITIALIZING, CONNECTED, ERROR }
@@ -38,6 +41,8 @@ data class ConnectionInfo(
     val selfTest: List<SensorProbe> = emptyList(),
     /** Когда проверка завершилась (0 — ещё не было). */
     val selfTestAtMs: Long = 0,
+    /** Результат последнего глубокого сканирования; null — не проводилось. */
+    val deepScan: DeepScanResult? = null,
 )
 
 /** Строка журнала: запрос, «сырой» ответ адаптера и что из него получилось. */
@@ -66,3 +71,20 @@ enum class ProbeVerdict(val label: String) {
     UNDECLARED("отвечает, но не заявлен"),
     ERROR("ошибка"),
 }
+
+/**
+ * Глубокое сканирование: каждому блоку ([DeepScanEntry.header]) отправляются запросы данных производителя
+ * (Mitsubishi и др.: служба 21, локальные идентификаторы 01…FF). Сохраняются только положительные ответы —
+ * по двум отчётам при разном уровне топлива или температуре видно, какой байт за что отвечает.
+ */
+data class DeepScanResult(
+    val entries: List<DeepScanEntry>,
+    /** Отказы блока («7F 21 xx»: нет такого идентификатора). */
+    val rejected: Int,
+    /** Нет ответа (NO DATA). */
+    val silent: Int,
+    val atMs: Long,
+    val notes: List<String> = emptyList(),
+)
+
+data class DeepScanEntry(val header: String, val command: String, val data: String)

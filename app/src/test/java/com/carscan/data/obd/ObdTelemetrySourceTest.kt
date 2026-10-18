@@ -273,4 +273,26 @@ class ObdTelemetrySourceTest {
         assertEquals(ProbeVerdict.OK, odometer.verdict)
         assertEquals("200000.5 км", odometer.decoded)
     }
+
+    @Test
+    fun `глубокое сканирование сохраняет ответы службы 21 и возвращает заголовок`() = runBlocking {
+        val car = gasolineCar + mapOf(
+            "2101" to "61 01 AA BB CC",
+            "2103" to "013\n0: 61 03 01 02 03 04\n1: 05 06 07 08 09 0A 0B", // многокадровый ответ
+            "2102" to "7F 21 12", // нет такого идентификатора
+        )
+        val elm = FakeElm327(car)
+        val source = ObdTelemetrySource({ VehicleProfile() }) { elm }
+        source.requestDeepScan()
+        withTimeout(10_000) { source.samples().first { source.connection.value.deepScan != null } }
+        val scan = source.connection.value.deepScan!!
+        // Эмулятор отвечает одинаково на любой заголовок — поэтому по записи от каждого блока
+        assertEquals(
+            listOf("7E0 2101 AA BB CC", "7E0 2103 01 02 03 04 05 06 07 08 09 0A 0B", "7E1 2101 AA BB CC", "7E1 2103 01 02 03 04 05 06 07 08 09 0A 0B"),
+            scan.entries.map { "${it.header} ${it.command} ${it.data}" },
+        )
+        assertEquals(2, scan.rejected)
+        val i = elm.commands.indexOf("21FF")
+        assertTrue("после сканирования снова функциональный адрес", elm.commands.subList(i, elm.commands.size).contains("ATSH7DF"))
+    }
 }

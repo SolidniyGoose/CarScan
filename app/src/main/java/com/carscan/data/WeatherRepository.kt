@@ -13,6 +13,7 @@ import android.os.CancellationSignal
 import android.os.Looper
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -29,6 +30,8 @@ data class OutsideWeather(
     val place: String?,
     val locationSource: LocationSource,
     val fetchedAtMs: Long,
+    /** Какой сервис ответил: «Open-Meteo» или запасной «MET Norway». */
+    val provider: String = "Open-Meteo",
 )
 
 enum class LocationSource(val label: String) {
@@ -46,7 +49,8 @@ internal data class Coordinates(
 internal data class CurrentConditions(val temperatureC: Double, val weatherCode: Int)
 
 /**
- * Уличная температура из интернета: Open-Meteo (бесплатно, без API-ключа).
+ * Уличная температура из интернета: Open-Meteo, а если он недоступен — MET Norway (оба бесплатно, без API-ключа).
+ * Запасной сервис нужен на практике: с мобильного интернета магнитолы Open-Meteo бывает недоступен.
  * Координаты — свежая геопозиция устройства (последняя известная, если ей меньше часа, иначе новый запрос),
  * а если её нет (нет разрешения или GPS) — приблизительно по IP-адресу.
  */
@@ -65,17 +69,32 @@ class WeatherRepository(private val context: Context) {
                 Locale.US, "Координаты для погоды: %.3f, %.3f (%s, %s)",
                 coordinates.latitude, coordinates.longitude, coordinates.source.label, coordinates.place ?: "город не определён",
             )
-            val url = openMeteoUrl(coordinates.latitude, coordinates.longitude)
-            val body = httpGet(url)
-            diag += "Open-Meteo: ${body.take(600)}"
-            val conditions = parseOpenMeteo(body)
-            OutsideWeather(
-                temperatureC = conditions.temperatureC,
-                weatherCode = conditions.weatherCode,
-                place = coordinates.place,
-                locationSource = coordinates.source,
-                fetchedAtMs = System.currentTimeMillis(),
+            val providers = listOf(
+                Triple("Open-Meteo", openMeteoUrl(coordinates.latitude, coordinates.longitude), ::parseOpenMeteo),
+                Triple("MET Norway", metNorwayUrl(coordinates.latitude, coordinates.longitude), ::parseMetNorway),
             )
+            var lastError: Exception? = null
+            for ((name, url, parse) in providers) {
+                try {
+                    val body = httpGet(url)
+                    val conditions = parse(body)
+                    diag += "$name: ${String.format(Locale.US, "%.1f °C, код %d", conditions.temperatureC, conditions.weatherCode)}"
+                    return@withContext OutsideWeather(
+                        temperatureC = conditions.temperatureC,
+                        weatherCode = conditions.weatherCode,
+                        place = coordinates.place,
+                        locationSource = coordinates.source,
+                        fetchedAtMs = System.currentTimeMillis(),
+                        provider = name,
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    diag += "$name недоступен: ${e.javaClass.simpleName}: ${e.message}"
+                    lastError = e
+                }
+            }
+            throw lastError ?: IllegalStateException("нет сервисов погоды")
         } catch (e: Exception) {
             diag += "Ошибка: ${e.javaClass.simpleName}: ${e.message}"
             throw e
@@ -177,9 +196,11 @@ class WeatherRepository(private val context: Context) {
     private fun httpGet(url: String): String {
         val connection = URL(url).openConnection() as HttpURLConnection
         return try {
-            connection.connectTimeout = TIMEOUT_MS
+            // Соединение — коротко: если сервис недоступен, быстрее переходим к запасному
+            connection.connectTimeout = CONNECT_TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
-            connection.setRequestProperty("User-Agent", "CarScan/1.0 (Android)")
+            // MET Norway требует User-Agent с контактом приложения
+            connection.setRequestProperty("User-Agent", "CarScan/1.0 github.com/SolidniyGoose/CarScan")
             val code = connection.responseCode
             check(code == HttpURLConnection.HTTP_OK) { "HTTP $code для $url" }
             connection.inputStream.bufferedReader().use { it.readText() }
@@ -190,6 +211,7 @@ class WeatherRepository(private val context: Context) {
 
     companion object {
         private const val TIMEOUT_MS = 8_000
+        private const val CONNECT_TIMEOUT_MS = 5_000
         private const val MAX_FIX_AGE_MS = 60 * 60 * 1000L
         private const val FRESH_FIX_TIMEOUT_MS = 20_000L
         private const val GEOJS_URL = "https://get.geojs.io/v1/ip/geo.json"
@@ -201,6 +223,43 @@ class WeatherRepository(private val context: Context) {
                 latitude,
                 longitude,
             )
+
+        internal fun metNorwayUrl(latitude: Double, longitude: Double): String =
+            String.format(
+                Locale.US,
+                "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=%.4f&lon=%.4f",
+                latitude,
+                longitude,
+            )
+
+        /** Первая точка прогноза MET Norway — текущий час; иконка погоды переводится в код WMO. */
+        internal fun parseMetNorway(body: String): CurrentConditions {
+            val data = JSONObject(body).getJSONObject("properties").getJSONArray("timeseries").getJSONObject(0).getJSONObject("data")
+            val symbol = data.optJSONObject("next_1_hours")?.optJSONObject("summary")?.optString("symbol_code").orEmpty()
+            return CurrentConditions(
+                temperatureC = data.getJSONObject("instant").getJSONObject("details").getDouble("air_temperature"),
+                weatherCode = metSymbolToWmo(symbol),
+            )
+        }
+
+        /** symbol_code MET Norway («lightrainshowers_day», «cloudy»…) → ближайший код WMO для [describeWeatherCode]. */
+        internal fun metSymbolToWmo(symbol: String): Int {
+            val s = symbol.substringBefore('_')
+            return when {
+                s.contains("thunder") -> 95
+                s.contains("snowshowers") -> 85
+                s.contains("snow") -> 71
+                s.contains("sleet") -> 67
+                s.contains("rainshowers") -> 80
+                s.contains("rain") -> 61
+                s == "fog" -> 45
+                s == "cloudy" -> 3
+                s == "partlycloudy" -> 2
+                s == "fair" -> 1
+                s == "clearsky" -> 0
+                else -> -1
+            }
+        }
 
         internal fun parseOpenMeteo(body: String): CurrentConditions {
             val current = JSONObject(body).getJSONObject("current")
