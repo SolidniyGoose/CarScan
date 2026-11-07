@@ -26,6 +26,8 @@ data class VehicleTelemetry(
     val dtcCount: Int = 0,
     val misfires: List<Int> = emptyList(),  // счётчики пропусков по цилиндрам (Mode 06, MID A2..)
     val readiness: List<ReadinessTest> = emptyList(),
+    /** Все прочитанные стандартные PID режима 01 (номер → значение) для списка «Все датчики». */
+    val obdValues: Map<Int, Double> = emptyMap(),
 )
 
 data class ReadinessTest(val name: String, val passed: Boolean)

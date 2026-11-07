@@ -1,6 +1,7 @@
 package com.carscan.ui
 
 import com.carscan.data.AppSettings
+import com.carscan.data.ConnectionInfo
 import com.carscan.data.LocationSource
 import com.carscan.data.OutsideWeather
 import com.carscan.data.ReadinessTest
@@ -149,5 +150,20 @@ class DashboardLogicTest {
         assertEquals("0 °C", signedTemp(0.2))
         assertEquals("07:32", formatDuration(452))
         assertEquals("1:07:32", formatDuration(4052))
+    }
+
+    @Test
+    fun `все заявленные PID в списке, непрочитанные с многоточием`() {
+        val s = state.copy(
+            connection = ConnectionInfo(supportedPids = setOf(0x01, 0x0C, 0x0E, 0x33)),
+            telemetry = telemetry.copy(obdValues = mapOf(0x0C to 699.0, 0x33 to 98.0)),
+        )
+        val section = PanelContent.allPidsSection(s)
+        // 01 — битовое поле, в числовой список не входит
+        assertEquals(
+            listOf("Обороты двигателя · 0C" to "699 об/мин", "Угол опережения зажигания · 0E" to "…", "Атмосферное давление · 33" to "98 кПа"),
+            section.rows.map { it.param to it.value },
+        )
+        assertTrue(section.title!!.contains("3"))
     }
 }

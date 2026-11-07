@@ -54,6 +54,13 @@ class SettingsRepository(context: Context) {
         _settings.value = next
     }
 
+    /** Протокол (номер AT DPN), который адаптер нашёл в прошлый раз. Хранится по адресу адаптера: он обычно живёт в одной машине. */
+    fun obdProtocol(address: String): Int? = prefs.getInt(KEY_PROTOCOL_PREFIX + address, 0).takeIf { it > 0 }
+
+    fun saveObdProtocol(address: String, protocol: Int) {
+        prefs.edit().putInt(KEY_PROTOCOL_PREFIX + address, protocol).apply()
+    }
+
     private fun load() = AppSettings(
         themeId = prefs.getString(KEY_THEME, null) ?: AppSettings().themeId,
         dataSource = prefs.getString(KEY_SOURCE, null)
@@ -80,5 +87,6 @@ class SettingsRepository(context: Context) {
         const val KEY_TANK = "vehicle_tank"
         const val KEY_FUEL = "vehicle_fuel"
         const val KEY_VE = "vehicle_ve"
+        const val KEY_PROTOCOL_PREFIX = "obd_protocol_"
     }
 }

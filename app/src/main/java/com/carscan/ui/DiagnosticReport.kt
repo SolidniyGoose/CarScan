@@ -4,6 +4,7 @@ import com.carscan.data.ProbeVerdict
 import com.carscan.data.TripStats
 import com.carscan.data.VehicleTelemetry
 import com.carscan.data.obd.Pid
+import com.carscan.data.obd.StandardPids
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -121,6 +122,11 @@ object DiagnosticReport {
         row("Темп. салона", t.cabinTemp?.let { fmt(it, 1) + " °C" })
         row("Check Engine / DTC", "${if (t.checkEngineOn) "горит" else "не горит"} / ${t.dtcCount}")
         row("Пропуски по цилиндрам", t.misfires.joinToString(" ").ifEmpty { null })
+
+        header("Все параметры ЭБУ (стандартные PID)")
+        StandardPids.all.filter { it.pid in c.supportedPids || it.pid in t.obdValues }.forEach { def ->
+            row("${hex(def.pid)} ${def.name}", t.obdValues[def.pid]?.let(def::format) ?: "ещё не прочитан")
+        }
 
         header("Бортовой компьютер")
         val trip = s.trip

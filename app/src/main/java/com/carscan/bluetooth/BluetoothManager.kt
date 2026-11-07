@@ -90,23 +90,36 @@ class BluetoothManager(
     }
 
     /**
-     * Пытается подключиться к устройству тремя способами.
+     * Способы подключения по порядку: защищённый SPP, незащищённый SPP (часть клонов ELM327),
+     * прямой канал RFCOMM 1–3 (старые магнитолы; так подключился и Car Scanner к адаптеру из отчёта).
+     */
+    private enum class ConnectMethod { SECURE, INSECURE, CHANNEL_1, CHANNEL_2, CHANNEL_3 }
+
+    private val prefs = context.getSharedPreferences("carscan_bluetooth", Context.MODE_PRIVATE)
+
+    /**
+     * Пытается подключиться к устройству всеми способами. Сработавший запоминается и в следующий раз
+     * пробуется первым: неудачная попытка у клона стоит несколько секунд.
      * Возвращает [BluetoothSocket] в случае успеха, либо null, если все попытки провалились.
      */
     suspend fun connectToDevice(device: BluetoothDevice): BluetoothSocket? = withContext(Dispatchers.IO) {
         bluetoothAdapter?.cancelDiscovery() // Важно для ускорения и стабильности подключения
 
-        // Способ 1: Стандартный RFCOMM (Secure)
-        var socket = attemptStandardConnect(device)
-        if (socket != null) return@withContext socket
-
-        // Способ 2: Insecure RFCOMM (для некоторых китайских клонов ELM327)
-        socket = attemptInsecureConnect(device)
-        if (socket != null) return@withContext socket
-
-        // Способ 3: Reflection - Самый "жесткий" фоллбэк для старых магнитол
-        socket = attemptReflectionConnect(device)
-        return@withContext socket
+        val key = KEY_METHOD_PREFIX + device.address
+        val saved = prefs.getString(key, null)?.let { name -> ConnectMethod.entries.firstOrNull { it.name == name } }
+        val order = listOfNotNull(saved) + ConnectMethod.entries.filter { it != saved }
+        for (method in order) {
+            val socket = when (method) {
+                ConnectMethod.SECURE -> attemptStandardConnect(device)
+                ConnectMethod.INSECURE -> attemptInsecureConnect(device)
+                ConnectMethod.CHANNEL_1 -> attemptChannelConnect(device, 1)
+                ConnectMethod.CHANNEL_2 -> attemptChannelConnect(device, 2)
+                ConnectMethod.CHANNEL_3 -> attemptChannelConnect(device, 3)
+            } ?: continue
+            if (method != saved) prefs.edit().putString(key, method.name).apply()
+            return@withContext socket
+        }
+        null
     }
 
     private fun attemptStandardConnect(device: BluetoothDevice): BluetoothSocket? {
@@ -133,21 +146,21 @@ class BluetoothManager(
         }
     }
 
-    private fun attemptReflectionConnect(device: BluetoothDevice): BluetoothSocket? {
-        // Адаптеры ELM327 слушают канал 1 (реже 2–3). Перебор всех 30 каналов при выключенном
-        // адаптере занимал минуты, прежде чем пользователь видел ошибку
-        for (channel in 1..3) {
-            var socket: BluetoothSocket? = null
-            try {
-                val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-                socket = method.invoke(device, channel) as BluetoothSocket
-                socket.connect()
-                return socket
-            } catch (e: Exception) {
-                safeCloseSocket(socket)
-            }
+    /**
+     * Прямой канал RFCOMM через скрытый метод. Адаптеры ELM327 слушают канал 1 (реже 2–3). Перебор всех 30 каналов
+     * при выключенном адаптере занимал минуты, прежде чем пользователь видел ошибку.
+     */
+    private fun attemptChannelConnect(device: BluetoothDevice, channel: Int): BluetoothSocket? {
+        var socket: BluetoothSocket? = null
+        try {
+            val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+            socket = method.invoke(device, channel) as BluetoothSocket
+            socket.connect()
+            return socket
+        } catch (e: Exception) {
+            safeCloseSocket(socket)
+            return null
         }
-        return null
     }
 
     private fun safeCloseSocket(socket: BluetoothSocket?) {
@@ -156,6 +169,10 @@ class BluetoothManager(
         } catch (e: IOException) {
             // Игнорируем ошибку при закрытии
         }
+    }
+
+    private companion object {
+        const val KEY_METHOD_PREFIX = "connect_method_"
     }
 
     private class SocketTransport(private val socket: BluetoothSocket) : ObdTransport {

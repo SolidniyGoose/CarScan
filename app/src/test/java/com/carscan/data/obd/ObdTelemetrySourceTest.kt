@@ -23,8 +23,10 @@ import java.util.Locale
 /**
  * Эмулятор ELM327: принимает команды по "\r" и отвечает как настоящий адаптер на CAN-машине —
  * с эхом до ATE0, «SEARCHING...», приглашением ">" и «NO DATA» на неподдерживаемые PID.
+ * Запрос режима 01 с числом ответов («010C2») отвечает как «010C»; [countSuffix] = false — клон, который
+ * число ответов не понимает и отвечает «?».
  */
-private class FakeElm327(private val car: Map<String, String>) : ObdTransport {
+private class FakeElm327(private val car: Map<String, String>, private val countSuffix: Boolean = true) : ObdTransport {
     // Пишет поток опроса, читает тест — список должен быть потокобезопасным
     val commands: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
     private val pending = ArrayDeque<Byte>()
@@ -43,7 +45,12 @@ private class FakeElm327(private val car: Map<String, String>) : ObdTransport {
             line.clear()
             commands += cmd
             if (cmd == "ATE0") echo = false
-            val reply = car[cmd] ?: if (cmd.startsWith("AT")) "OK" else "NO DATA"
+            val withCount = MODE01_WITH_COUNT.matches(cmd)
+            val key = if (withCount) cmd.dropLast(1) else cmd
+            val reply = when {
+                withCount && !countSuffix -> "?"
+                else -> car[key] ?: if (cmd.startsWith("AT")) "OK" else "NO DATA"
+            }
             val text = (if (echo) "$cmd\r" else "") + reply.replace("\n", "\r") + "\r\r>"
             synchronized(lock) { text.toByteArray(Charsets.US_ASCII).forEach { pending.addLast(it) } }
         }
@@ -65,6 +72,20 @@ private class FakeElm327(private val car: Map<String, String>) : ObdTransport {
 
     /** Команды обычного опроса — после проверки датчиков (она заканчивается на ATH0). */
     val pollCommands: List<String> get() = commands.drop(commands.lastIndexOf("ATH0") + 1)
+
+    private companion object {
+        val MODE01_WITH_COUNT = Regex("^01[0-9A-F]{3}$")
+    }
+}
+
+/** Память протокола для тестов: что было сохранено между подключениями. */
+private class FakeProtocolMemory(var stored: Int?) : ProtocolMemory {
+    val saved = mutableListOf<Int>()
+    override fun load(): Int? = stored
+    override fun save(protocol: Int) {
+        saved += protocol
+        stored = protocol
+    }
 }
 
 private fun mask(base: Int, vararg pids: Int): String {
@@ -214,7 +235,8 @@ class ObdTelemetrySourceTest {
     fun `журнал хранит сырые ответы и расшифровку`() = runBlocking {
         val source = ObdTelemetrySource({ VehicleProfile() }) { FakeElm327(gasolineCar) }
         source.samples().take(2).toList()
-        val rpm = source.connection.value.log.last { it.command == "010C" }
+        // «1» в конце — число ожидаемых ответов: 0C заявил один блок
+        val rpm = source.connection.value.log.last { it.command == "010C1" }
         assertEquals("410C1AF8", rpm.response.replace(" ", ""))
         assertEquals("1726 об/мин", rpm.decoded)
     }
@@ -266,7 +288,7 @@ class ObdTelemetrySourceTest {
             "01A6" to "41 A6 00 1E 84 85", // 2 000 005 → 200 000.5 км
         )
         val source = ObdTelemetrySource({ VehicleProfile() }) { FakeElm327(car) }
-        source.samples().first()
+        withTimeout(10_000) { source.samples().first { source.connection.value.selfTestAtMs > 0 } }
         val info = source.connection.value
         assertTrue(0xA6 in info.supportedPids)
         val odometer = info.selfTest.single { it.command == "01A6" }
@@ -294,5 +316,92 @@ class ObdTelemetrySourceTest {
         assertEquals(2, scan.rejected)
         val i = elm.commands.indexOf("21FF")
         assertTrue("после сканирования снова функциональный адрес", elm.commands.subList(i, elm.commands.size).contains("ATSH7DF"))
+    }
+
+    /**
+     * Mitsubishi Outlander XL 2.0 из отчёта 11.10.2026: отвечают двигатель (7E8) и вариатор (7E9).
+     * Маски и ответы — те же байты, что в журнале с машины.
+     */
+    private val outlander = mapOf(
+        "ATZ" to "\nELM327 v1.5",
+        "ATI" to "ELM327 v1.5",
+        "ATDPN" to "A6",
+        "ATRV" to "14.3V",
+        "0100" to "SEARCHING...\n4100BE3FB813\n410088180013",
+        "0120" to "4120" + mask(0x20, 0x21, 0x2C, 0x2E, 0x30, 0x31, 0x33, 0x40).replace(" ", "") + "\n412000000000",
+        "0140" to "4140" + mask(0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x49, 0x4A, 0x4C, 0x5A).replace(" ", ""),
+        "0101" to "410100076120\n410100040000",
+        "0103" to "41030200",
+        "0104" to "41043D",
+        "0105" to "41057F\n41057F",
+        "0106" to "410684",
+        "0107" to "41077F",
+        "010B" to "410B21",
+        "010C" to "410C0AEC\n410C0AEC",
+        "010D" to "410D00\n410D00",
+        "010E" to "410E8C",
+        "010F" to "410F48",
+        "0110" to "411000F0",
+        "0111" to "411126",
+        "0133" to "413362",
+        "0142" to "4142375D",
+        "0146" to "414648",
+    )
+
+    @Test
+    fun `в запросе число ответов - по числу блоков, заявивших PID`() = runBlocking {
+        val elm = FakeElm327(outlander)
+        val t = ObdTelemetrySource({ VehicleProfile() }) { elm }.samples().first()
+        assertEquals(699, t.rpm)
+        // Обороты, скорость, ОЖ и статус отдают оба блока, нагрузку и MAF — только двигатель
+        for (cmd in listOf("010C2", "010D2", "01052", "01012", "01041", "01101")) {
+            assertTrue("ожидался запрос $cmd", cmd in elm.commands)
+        }
+        assertFalse("маски поддерживаемых PID — без числа ответов", "01001" in elm.commands || "01002" in elm.commands)
+    }
+
+    @Test
+    fun `адаптер не понимает число ответов - опрос продолжается без него`() = runBlocking {
+        val elm = FakeElm327(gasolineCar, countSuffix = false)
+        val source = ObdTelemetrySource({ VehicleProfile() }) { elm }
+        val t = source.samples().take(2).toList().last()
+        assertEquals(1726, t.rpm)
+        assertEquals("число ответов пробуем один раз", 1, elm.commands.count { it.length == 5 && it.startsWith("01") })
+        assertTrue("010C" in elm.commands)
+        assertTrue(source.connection.value.log.any { it.decoded?.contains("не понимает число ответов") == true })
+    }
+
+    @Test
+    fun `все заявленные PID читаются по кругу для списка «Все датчики»`() = runBlocking {
+        val t = ObdTelemetrySource({ VehicleProfile() }) { FakeElm327(outlander) }.samples().take(25).toList().last()
+        assertEquals(98.0, t.obdValues.getValue(0x33), 1e-9)      // атм. давление
+        assertEquals(14.173, t.obdValues.getValue(0x42), 1e-9)    // напряжение ЭБУ
+        assertEquals(6.0, t.obdValues.getValue(0x0E), 1e-9)       // угол опережения
+        assertEquals(14.9, t.obdValues.getValue(0x11), 0.01)      // дроссель
+        assertEquals(699.0, t.obdValues.getValue(0x0C), 1e-9)     // и то, что опрашивается по расписанию
+    }
+
+    @Test
+    fun `протокол запоминается и в следующий раз пробуется без поиска`() = runBlocking {
+        val memory = FakeProtocolMemory(null)
+        val firstRun = FakeElm327(outlander)
+        ObdTelemetrySource({ VehicleProfile() }, memory) { firstRun }.samples().first()
+        assertTrue("ATSP0" in firstRun.commands)
+        assertEquals(listOf(6), memory.saved)
+
+        val secondRun = FakeElm327(outlander)
+        ObdTelemetrySource({ VehicleProfile() }, memory) { secondRun }.samples().first()
+        assertTrue("ATSPA6" in secondRun.commands)
+        assertFalse("ATSP0" in secondRun.commands)
+        assertEquals("тот же протокол повторно не сохраняем", listOf(6), memory.saved)
+    }
+
+    @Test
+    fun `проверка датчиков идёт после первых показаний`() = runBlocking {
+        val elm = FakeElm327(gasolineCar)
+        withTimeout(10_000) { ObdTelemetrySource({ VehicleProfile() }) { elm }.samples().take(5).toList() }
+        val firstPoll = elm.commands.indexOf("010C1")
+        val selfTest = elm.commands.indexOf("ATH1")
+        assertTrue("опрос $firstPoll раньше проверки $selfTest", firstPoll in 0 until selfTest)
     }
 }

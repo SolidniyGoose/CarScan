@@ -25,16 +25,29 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToInt
 
+/** Протокол машины между подключениями: в следующий раз адаптер пробует его первым и не тратит секунды на поиск. */
+interface ProtocolMemory {
+    fun load(): Int?
+    fun save(protocol: Int)
+
+    object None : ProtocolMemory {
+        override fun load(): Int? = null
+        override fun save(protocol: Int) {}
+    }
+}
+
 /**
  * Реальный автомобиль через адаптер ELM327 (стандартные PID SAE J1979).
  *
  * Опрос по группам: обороты/скорость/нагрузка/расход — каждый цикл, температуры и коррекции — каждый 5-й,
  * уровень топлива, напряжение, Check Engine — каждый 20-й, пропуски зажигания (режим 06) — каждый 60-й.
+ * Кроме того, каждый цикл читается один из остальных заявленных PID — для списка «Все датчики».
  * PID, которые ЭБУ не поддерживает, не запрашиваются: значение остаётся null и на экране «—».
  */
 class ObdTelemetrySource(
     /** Текущий профиль: пользователь может сменить автомобиль в настройках на ходу. */
     private val profile: () -> VehicleProfile,
+    private val protocolMemory: ProtocolMemory = ProtocolMemory.None,
     private val openTransport: suspend () -> ObdTransport,
 ) : TelemetrySource {
 
@@ -64,11 +77,15 @@ class ObdTelemetrySource(
         try {
             val session = Session(Elm327(transport.input, transport.output))
             session.initialize()
-            session.selfTest()
+            var polls = 0
             while (true) {
-                if (selfTestRequested.getAndSet(false)) session.selfTest()
+                // Проверка датчиков (~20 запросов, у неподдерживаемых — ожидание таймаута) идёт после первых снимков:
+                // показания появляются на экране сразу после подключения, а не через несколько секунд
+                val selfTest = selfTestRequested.getAndSet(false) || polls == AUTO_SELF_TEST_AFTER_POLLS
+                if (selfTest) session.selfTest()
                 if (deepScanRequested.getAndSet(false)) session.deepScan()
                 emit(session.poll())
+                polls++
                 _connection.update { it.copy(log = session.logSnapshot()) }
             }
         } catch (e: CancellationException) {
@@ -99,6 +116,16 @@ class ObdTelemetrySource(
         private var cycle = 0L
         private var t = VehicleTelemetry()
 
+        /** Сколько блоков заявили каждый PID (на Outlander XL обороты и скорость отдают и двигатель, и вариатор). */
+        private val responders = mutableMapOf<Int, Int>()
+
+        /** Дописывать к запросу число ожидаемых ответов («010C2»). Выключается, если адаптер его не понимает. */
+        private var countSuffix = false
+
+        /** Последние значения всех прочитанных стандартных PID — для списка «Все датчики». */
+        private val values = mutableMapOf<Int, Double>()
+        private var extraIndex = 0
+
         fun logSnapshot(): List<ObdLogEntry> = log.toList()
 
         private suspend fun send(command: String, timeoutMs: Long = Elm327.DEFAULT_TIMEOUT_MS): ElmResponse =
@@ -119,11 +146,19 @@ class ObdTelemetrySource(
             status(ConnectionState.INITIALIZING, "Сброс адаптера…")
             send("ATZ", 5_000)
             // Эхо и переводы строк выключены, пробелы и заголовки тоже: разбирать проще и быстрее
-            for (cmd in listOf("ATE0", "ATL0", "ATS0", "ATH0", "ATAT1", "ATSP0")) send(cmd)
+            for (cmd in listOf("ATE0", "ATL0", "ATS0", "ATH0", "ATAT1")) send(cmd)
+            // Протокол с прошлого раза адаптер пробует первым («AT SP A6»), а если не подошёл — ищет сам.
+            // Без этого поиск по всем шинам занимает 2–10 с (у Car Scanner на этой машине — 2,4 с)
+            val remembered = protocolMemory.load()?.takeIf { it in 1..9 }
+            val selectProtocol = remembered?.let { String.format(Locale.US, "ATSPA%X", it) }
+            if (selectProtocol == null || !send(selectProtocol).ok) send("ATSP0")
             val adapter = send("ATI").lines.firstOrNull()
             _connection.update { it.copy(adapter = adapter) }
 
-            status(ConnectionState.INITIALIZING, "Поиск протокола автомобиля…")
+            status(
+                ConnectionState.INITIALIZING,
+                if (remembered != null) "Подключение к ЭБУ (${protocolName(remembered)})…" else "Поиск протокола автомобиля…",
+            )
             // Первый запрос запускает автоопределение протокола: на старых шинах это до ~10 секунд
             val first = send("0100", 15_000)
             if (!first.ok) {
@@ -138,6 +173,9 @@ class ObdTelemetrySource(
             supported = discoverSupported(first)
 
             protocol = send("ATDPN").lines.firstOrNull()?.trim()?.removePrefix("A")?.toIntOrNull(16)
+            protocol?.takeIf { it in 1..9 && it != remembered }?.let(protocolMemory::save)
+            // На CAN адаптер с числом ответов возвращается сразу, как ответили все блоки, а не ждёт тишины на шине
+            countSuffix = isCan
             pid(Pid.MONITOR_STATUS, ObdDecode::monitorStatus)?.let { diesel = it.compressionIgnition }
             if (isCan) cylinderMids = discoverMisfireMonitors()
 
@@ -153,18 +191,24 @@ class ObdTelemetrySource(
         }
 
         private suspend fun discoverSupported(first: ElmResponse): MutableSet<Int> {
-            val result = ObdParser.mode01All(first.lines, Pid.SUPPORTED_01_20)
-                .flatMap { ObdDecode.supportedNumbers(0x00, it) }.toMutableSet()
-            record(first, "${result.size} PID в диапазоне 01–20", replaceLast = true)
+            val result = masks(first, Pid.SUPPORTED_01_20).toMutableSet()
+            record(first, "${result.size} PID в диапазоне 01–20, блоков: ${ObdParser.mode01All(first.lines, 0x00).size}", replaceLast = true)
             var base = Pid.SUPPORTED_21_40
             while (base <= Pid.SUPPORTED_A1_C0 && base in result) {
                 val r = elm.send(String.format(Locale.US, "01%02X", base))
-                val found = if (r.ok) ObdParser.mode01All(r.lines, base).flatMap { ObdDecode.supportedNumbers(base, it) } else emptyList()
+                val found = if (r.ok) masks(r, base) else emptySet()
                 record(r, "${found.size} PID в диапазоне ${hex(base + 1)}–${hex(base + 0x20)}")
                 result += found
                 base += 0x20
             }
             return result
+        }
+
+        /** PID из масок всех ответивших блоков; заодно считает, сколько блоков заявили каждый PID. */
+        private fun masks(r: ElmResponse, base: Int): Set<Int> {
+            val perEcu = ObdParser.mode01All(r.lines, base).map { ObdDecode.supportedNumbers(base, it) }
+            perEcu.forEach { pids -> pids.forEach { responders.merge(it, 1, Int::plus) } }
+            return perEcu.flatten().toSet()
         }
 
         private suspend fun discoverMisfireMonitors(): List<Int> {
@@ -372,7 +416,20 @@ class ObdTelemetrySource(
             if (c % 60 == 0L && cylinderMids.isNotEmpty()) {
                 t = t.copy(misfires = readMisfires() ?: t.misfires)
             }
+            readNextExtra()
+            t = t.copy(obdValues = values.toMap())
             return t
+        }
+
+        /**
+         * Один из остальных заявленных PID за цикл (угол опережения, дроссель, лямбда-зонды, педаль газа и т. д.):
+         * список «Все датчики» наполняется, а обороты и скорость не начинают обновляться реже.
+         */
+        private suspend fun readNextExtra() {
+            val extras = supported.filter { it in StandardPids.byPid && it !in POLLED_PIDS && isSupported(it) }.sorted()
+            if (extras.isEmpty()) return
+            val def = StandardPids.byPid.getValue(extras[extraIndex++ % extras.size])
+            pid(def.pid, def::decode)
         }
 
         /**
@@ -441,14 +498,25 @@ class ObdTelemetrySource(
 
         private suspend fun <T> pid(pid: Int, decode: (IntArray) -> T?): T? {
             if (!isSupported(pid)) return null
-            val r = elm.send(String.format(Locale.US, "01%02X", pid))
+            val command = String.format(Locale.US, "01%02X", pid)
+            // Число ожидаемых ответов в конце запроса («010C2»): адаптер отдаёт ответ, как только ответили все
+            // заявившие PID блоки, и не ждёт тишины на шине. Так опрашивает Car Scanner: 25–40 мс на запрос вместо 60–120
+            val expected = responders[pid]?.takeIf { countSuffix && it in 1..15 }
+            var r = elm.send(if (expected != null) command + "%X".format(expected) else command)
+            if (expected != null && r.error == "?") {
+                countSuffix = false
+                record(r, "адаптер не понимает число ответов — дальше без него")
+                r = elm.send(command)
+            }
             if (!r.ok) {
                 record(r, null)
                 // ЭБУ заявил PID, но не отвечает — после трёх попыток перестаём спрашивать
                 if (r.isNoData && (noDataCount.merge(pid, 1, Int::plus) ?: 0) >= 3) disabled += pid
                 return null
             }
-            val value = ObdParser.mode01(r.lines, pid)?.let(decode)
+            val data = ObdParser.mode01(r.lines, pid)
+            data?.let { StandardPids.byPid[pid]?.decode(it) }?.let { values[pid] = it }
+            val value = data?.let(decode)
             record(r, value?.let { describe(pid, it) })
             return value
         }
@@ -469,6 +537,15 @@ class ObdTelemetrySource(
     companion object {
         private const val LOG_SIZE = 80
         private const val PROBE_TIMEOUT_MS = 3_000L
+
+        /** После скольких снимков запускается автоматическая проверка датчиков. */
+        private const val AUTO_SELF_TEST_AFTER_POLLS = 3
+
+        /** PID, которые [Session.poll] и так читает по расписанию, — в дополнительный круговой опрос не входят. */
+        private val POLLED_PIDS = setOf(
+            Pid.RPM, Pid.SPEED, Pid.ENGINE_LOAD, Pid.INTAKE_PRESSURE, Pid.COOLANT_TEMP, Pid.SHORT_TERM_FUEL_TRIM,
+            Pid.LONG_TERM_FUEL_TRIM, Pid.MAF, Pid.FUEL_RATE, Pid.FUEL_LEVEL, Pid.INTAKE_AIR_TEMP, Pid.AMBIENT_AIR_TEMP,
+        )
 
         /** Двигатель и коробка: на CAN 11 бит отвечают с 7E8 и 7E9 (так в отчёте с Outlander XL). */
         private val DEEP_SCAN_HEADERS = listOf("7E0", "7E1")
@@ -531,7 +608,7 @@ class ObdTelemetrySource(
                 Pid.MODULE_VOLTAGE -> "${d(value, 2)} V"
                 Pid.FUEL_RATE -> "${d(value, 2)} л/ч"
                 Pid.MONITOR_STATUS -> (value as MonitorStatus).let { "MIL ${if (it.milOn) "вкл" else "выкл"}, DTC ${it.dtcCount}" }
-                else -> value.toString()
+                else -> (value as? Double)?.let { v -> StandardPids.byPid[pid]?.format(v) } ?: value.toString()
             }
         }
     }

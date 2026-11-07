@@ -11,6 +11,7 @@ import com.carscan.data.VehicleCatalog
 import com.carscan.data.VehicleRepository
 import com.carscan.data.WeatherRepository
 import com.carscan.data.obd.ObdTelemetrySource
+import com.carscan.data.obd.ProtocolMemory
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.qualifier.named
@@ -40,7 +41,14 @@ val appModule = module {
         val bluetooth = get<com.carscan.bluetooth.BluetoothManager>()
         val settings = get<SettingsRepository>()
         val vehicles = get<VehicleRepository>()
-        ObdTelemetrySource({ vehicles.profile() }) { bluetooth.openObdTransport(settings.current.obdDeviceAddress) }
+        // Протокол машины запоминается: при следующем подключении адаптер пробует его сразу, без поиска
+        val protocolMemory = object : ProtocolMemory {
+            override fun load(): Int? = settings.current.obdDeviceAddress?.let(settings::obdProtocol)
+            override fun save(protocol: Int) {
+                settings.current.obdDeviceAddress?.let { settings.saveObdProtocol(it, protocol) }
+            }
+        }
+        ObdTelemetrySource({ vehicles.profile() }, protocolMemory) { bluetooth.openObdTransport(settings.current.obdDeviceAddress) }
     }
 
     // Уличная температура из интернета (Open-Meteo)

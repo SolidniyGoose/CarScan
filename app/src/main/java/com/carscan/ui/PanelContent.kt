@@ -7,6 +7,7 @@ import com.carscan.data.FuelType
 import com.carscan.data.ProbeVerdict
 import com.carscan.data.UpdateRepository
 import com.carscan.data.WeatherRepository
+import com.carscan.data.obd.StandardPids
 import com.carscan.ui.theme.Palettes
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -156,9 +157,27 @@ object PanelContent {
                         PanelRow("Салон", t.cabinTemp.orDash(" °C", 1)),
                     ),
                 ),
+                allPidsSection(s),
             ),
         )
     }
+
+    /**
+     * Все числовые PID, которые заявил ЭБУ, — как «Все датчики» в Car Scanner. Значение появляется после первого
+     * чтения: редкие PID опрашиваются по кругу, по одному за цикл.
+     */
+    internal fun allPidsSection(s: DashboardState): PanelSection {
+        val values = s.telemetry.obdValues
+        val rows = StandardPids.all
+            .filter { it.pid in s.connection.supportedPids || it.pid in values }
+            .map { def -> PanelRow("${def.name} · ${hex(def.pid)}", values[def.pid]?.let(def::format) ?: "…") }
+        return PanelSection(
+            "Все параметры ЭБУ (OBD2, ${rows.size})",
+            rows.ifEmpty { listOf(PanelRow("Данные", "после подключения к ELM327")) },
+        )
+    }
+
+    private fun hex(n: Int) = String.format(Locale.US, "%02X", n)
 
     private fun ecu(s: DashboardState): PanelSpec {
         val t = s.telemetry
