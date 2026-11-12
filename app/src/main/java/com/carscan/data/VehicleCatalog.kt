@@ -99,7 +99,11 @@ class VehicleRepository(private val catalogLoader: () -> VehicleCatalog, private
     fun profile(s: AppSettings = settings.current): VehicleProfile = profileOf(spec(s), s)
 
     companion object {
-        fun profileOf(spec: VehicleSpec, s: AppSettings) = VehicleProfile(
+        fun profileOf(spec: VehicleSpec, s: AppSettings): VehicleProfile = profileOf(
+            spec, s, ManufacturerPids.forVehicle(spec.make, spec.model, spec.generation, spec.engine),
+        )
+
+        private fun profileOf(spec: VehicleSpec, s: AppSettings, commands: ManufacturerPids.Commands) = VehicleProfile(
             make = spec.make,
             model = spec.model,
             generation = spec.generation,
@@ -110,10 +114,10 @@ class VehicleRepository(private val catalogLoader: () -> VehicleCatalog, private
             powerHp = spec.powerHp,
             tankLiters = s.tankOverride ?: spec.tankLiters,
             volumetricEfficiency = s.veOverride ?: VehicleProfile.DEFAULT_VE,
-            // Команды производителя (температура АКПП/салона) подключаются здесь по марке,
-            // когда найдена проверенная команда — см. docs/OBD_CHECK.md, шаг 5
-            atfTempCommand = null,
-            cabinTempCommand = null,
+            // Команды производителя (топливо, АКПП, салон) — по марке и модели, см. ManufacturerPids и docs/OBD_CHECK.md, шаг 5
+            atfTempCommand = commands.atfTemp,
+            cabinTempCommand = commands.cabinTemp,
+            fuelLevelCommand = commands.fuelLevel,
         )
     }
 }

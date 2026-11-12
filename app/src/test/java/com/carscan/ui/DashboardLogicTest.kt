@@ -3,9 +3,13 @@ package com.carscan.ui
 import com.carscan.data.AppSettings
 import com.carscan.data.ConnectionInfo
 import com.carscan.data.LocationSource
+import com.carscan.data.ManufacturerPids
 import com.carscan.data.OutsideWeather
+import com.carscan.data.ProbeVerdict
 import com.carscan.data.ReadinessTest
+import com.carscan.data.SensorProbe
 import com.carscan.data.TripStats
+import com.carscan.data.VehicleProfile
 import com.carscan.data.VehicleTelemetry
 import com.carscan.ui.theme.Palettes
 import org.junit.Assert.assertEquals
@@ -165,5 +169,31 @@ class DashboardLogicTest {
             section.rows.map { it.param to it.value },
         )
         assertTrue(section.title!!.contains("3"))
+    }
+
+    @Test
+    fun `команды производителя - значение или ответ блока при проверке`() {
+        val profile = VehicleProfile(
+            make = "Mitsubishi",
+            model = "Outlander",
+            fuelLevelCommand = ManufacturerPids.MMC_FUEL_LEVEL,
+            cabinTempCommand = ManufacturerPids.MMC_CABIN_TEMP,
+            atfTempCommand = ManufacturerPids.MMC_CVT_TEMP,
+        )
+        val s = state.copy(
+            profile = profile,
+            telemetry = telemetry.copy(fuelLevelPercent = 60.0, cabinTemp = null, atfTemp = null),
+            connection = ConnectionInfo(
+                selfTest = listOf(SensorProbe("Темп. в салоне (климат)", "688 2110", null, "NO DATA", null, ProbeVerdict.NO_DATA)),
+            ),
+        )
+        val rows = PanelContent.manufacturerSection(s)!!.rows.associate { it.param to it.value }
+        assertEquals("60 %", rows["Уровень топлива (приборы) · 6A0 21A3"])
+        assertEquals("нет данных", rows["Темп. в салоне (климат) · 688 2110"])
+        assertEquals("…", rows["Темп. вариатора · 7E1 2103"])
+        assertEquals(null, PanelContent.manufacturerSection(state))
+        // Почему пусто — с ответом блока
+        val reasons = DiagnosticReport.missingValues(s).toMap()
+        assertTrue(reasons.getValue("Темп. салона").contains("688 2110: нет данных"))
     }
 }

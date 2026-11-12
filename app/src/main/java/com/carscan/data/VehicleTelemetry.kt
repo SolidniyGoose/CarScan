@@ -54,8 +54,13 @@ data class VehicleProfile(
     val atfTempCommand: ExtendedPid? = null,
     /** Температура в салоне — только командой производителя. */
     val cabinTempCommand: ExtendedPid? = null,
+    /** Уровень топлива, если ЭБУ не отдаёт PID 2F (у Mitsubishi его знает только приборная панель). */
+    val fuelLevelCommand: ExtendedPid? = null,
 ) {
     val name: String get() = "$make $model"
+
+    /** Все команды производителя этого автомобиля — для проверки датчиков и списка «Все датчики». */
+    val manufacturerCommands: List<ExtendedPid> get() = listOfNotNull(fuelLevelCommand, cabinTempCommand, atfTempCommand)
 
     companion object {
         const val DEFAULT_VE = 0.85
@@ -63,12 +68,34 @@ data class VehicleProfile(
 }
 
 /**
- * Команда производителя (обычно UDS 22 xx xx) к конкретному блоку по CAN 11 бит.
+ * Команда производителя к конкретному блоку по CAN 11 бит: служба 21 (Mitsubishi, Nissan) или 22 (UDS).
  * Пример: header = "7E1" (АКПП), command = "221234", decode = { it[0] - 40.0 }.
- * [decode] получает байты после эха запроса (62 12 34 …).
+ * [decode] получает байты после эха запроса (62 12 34 … или 61 03 …); null — байтов не хватает или значение не то.
  */
 data class ExtendedPid(
+    /** Название для журнала и проверки датчиков: «Уровень топлива (приборы)». */
+    val name: String,
+    /** Адрес запроса (AT SH). */
     val header: String,
     val command: String,
-    val decode: (IntArray) -> Double,
-)
+    /**
+     * Адрес ответа, если он не «адрес запроса + 8» (приборы Mitsubishi: 6A0 → 514). Тогда адаптеру задаются
+     * фильтр приёма (AT CRA) и flow control для многокадровых ответов. null — 7E0…7E7, всё по умолчанию.
+     */
+    val receive: String? = null,
+    val unit: String = "",
+    val digits: Int = 0,
+    /** Правдоподобные значения: всё, что вне, отбрасывается (не тот байт, другая прошивка блока). */
+    val range: ClosedFloatingPointRange<Double>? = null,
+    /** Откуда взята команда — видно в проверке датчиков и в отчёте. */
+    val source: String = "",
+    val decode: (IntArray) -> Double?,
+) {
+    /** «6A0 21A3» — так команда подписана в проверке датчиков. */
+    val label: String get() = "$header $command"
+
+    fun read(data: IntArray): Double? =
+        runCatching { decode(data) }.getOrNull()?.takeIf { v -> !v.isNaN() && (range == null || v in range) }
+
+    fun format(value: Double): String = String.format(java.util.Locale.US, "%.${digits}f", value) + unit
+}

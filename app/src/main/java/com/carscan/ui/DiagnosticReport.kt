@@ -208,8 +208,15 @@ object DiagnosticReport {
                 else -> "PID ${hex(pid)}: ${probe.verdict.label}, ответ «${probe.response}»"
             }
         }
+        fun commandReason(cmd: com.carscan.data.ExtendedPid?): String {
+            if (cmd == null) return "в стандартном OBD-II нет, команды производителя для ${s.profile.name} нет"
+            val probe = probes[cmd.label] ?: return "команда ${cmd.label} ещё не проверялась"
+            return "команда ${cmd.label}: ${probe.verdict.label}, ответ «${probe.response}»"
+        }
         val result = mutableListOf<Pair<String, String>>()
-        if (t.fuelLevelPercent == null) result += "Уровень топлива" to pidReason(Pid.FUEL_LEVEL)
+        if (t.fuelLevelPercent == null) {
+            result += "Уровень топлива" to pidReason(Pid.FUEL_LEVEL) + (s.profile.fuelLevelCommand?.let { "; " + commandReason(it) } ?: "")
+        }
         if (s.fuelLiters == null) result += "Остаток топлива (л)" to "нет уровня топлива в %"
         if (t.fuelRateLph == null) {
             result += "Расход" to when {
@@ -229,8 +236,8 @@ object DiagnosticReport {
         }
         if (t.coolantTemp == null) result += "Темп. ОЖ" to pidReason(Pid.COOLANT_TEMP)
         if (t.voltage == null) result += "Напряжение" to "ни AT RV, ни PID 42 не ответили"
-        if (t.atfTemp == null) result += "Темп. АКПП" to "в стандартном OBD-II нет, команда производителя не задана"
-        if (t.cabinTemp == null) result += "Темп. салона" to "в стандартном OBD-II нет, команда производителя не задана"
+        if (t.atfTemp == null) result += "Темп. АКПП" to commandReason(s.profile.atfTempCommand)
+        if (t.cabinTemp == null) result += "Темп. салона" to commandReason(s.profile.cabinTempCommand)
         if (t.ambientAirTemp == null) result += "Темп. наружная (ТС)" to pidReason(Pid.AMBIENT_AIR_TEMP)
         if (s.outsideTempC == null) {
             result += "Темп. на улице" to listOfNotNull(

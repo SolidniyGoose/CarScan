@@ -157,8 +157,30 @@ object PanelContent {
                         PanelRow("Салон", t.cabinTemp.orDash(" °C", 1)),
                     ),
                 ),
-                allPidsSection(s),
-            ),
+            ) + listOfNotNull(manufacturerSection(s), allPidsSection(s)),
+        )
+    }
+
+    /**
+     * Команды производителя этого автомобиля (топливо с приборов, вариатор, салон): значение, а пока его нет —
+     * что ответил блок при проверке датчиков. null — для машины таких команд нет.
+     */
+    internal fun manufacturerSection(s: DashboardState): PanelSection? {
+        val p = s.profile
+        val t = s.telemetry
+        val commands = listOfNotNull(
+            p.fuelLevelCommand?.let { it to t.fuelLevelPercent },
+            p.cabinTempCommand?.let { it to t.cabinTemp },
+            p.atfTempCommand?.let { it to t.atfTemp?.toDouble() },
+        )
+        if (commands.isEmpty()) return null
+        val probes = s.connection.selfTest.associateBy { it.command }
+        val rows = commands.map { (cmd, value) ->
+            PanelRow("${cmd.name} · ${cmd.label}", value?.let(cmd::format) ?: probes[cmd.label]?.verdict?.label ?: "…")
+        }
+        return PanelSection(
+            "Команды ${p.make}",
+            rows + PanelRow("Источник", "профили владельцев, сверьте с приборкой"),
         )
     }
 
@@ -248,7 +270,7 @@ object PanelContent {
                 PanelRow("Мгновенный расход", instantConsumption(s)),
                 PanelRow("Запас хода", s.rangeKm?.let { "≈ ${it.roundToInt()} км" } ?: NO_VALUE),
                 PanelRow("За поездку", s.trip.fuelUsedL.fmt(2) + " л"),
-            ) to "Уровень топлива (PID 2F) пересчитывается в литры по объёму бака. Средний расход считает бортовой компьютер приложения с начала поездки."
+            ) to "Уровень топлива (PID 2F, а если его нет — команда производителя к приборной панели) пересчитывается в литры по объёму бака. Средний расход считает бортовой компьютер приложения с начала поездки."
             CarNode.BATTERY -> listOf(
                 statusRow,
                 PanelRow("Напряжение сети", t.voltage.orDash(" V", 2), status.level),

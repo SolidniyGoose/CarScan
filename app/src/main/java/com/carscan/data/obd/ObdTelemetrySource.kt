@@ -126,6 +126,13 @@ class ObdTelemetrySource(
         private val values = mutableMapOf<Int, Double>()
         private var extraIndex = 0
 
+        /**
+         * Команды производителя, которые трижды подряд не дали значения (блока нет или команда не та), больше
+         * не отправляются: переключение на блок стоит до девяти команд адаптеру. Проверка датчиков пробует их снова.
+         */
+        private val extendedFailures = mutableMapOf<String, Int>()
+        private val extendedDisabled = mutableSetOf<String>()
+
         fun logSnapshot(): List<ObdLogEntry> = log.toList()
 
         private suspend fun send(command: String, timeoutMs: Long = Elm327.DEFAULT_TIMEOUT_MS): ElmResponse =
@@ -262,7 +269,7 @@ class ObdTelemetrySource(
                     note = probe.range?.takeIf { verdict == ProbeVerdict.SUSPICIOUS }
                         ?.let { "ожидается ${probe.format(it.start)}…${probe.format(it.endInclusive)}" },
                 )
-            } + adapterVoltageProbe() + headerProbes()
+            } + adapterVoltageProbe() + manufacturerProbes() + headerProbes()
             _connection.update {
                 it.copy(
                     state = ConnectionState.CONNECTED,
@@ -294,14 +301,14 @@ class ObdTelemetrySource(
         }
 
         /**
-         * Глубокое сканирование: служба 21 (ReadDataByLocalIdentifier) у двигателя и коробки, идентификаторы 01…FF.
-         * Только чтение. Опрос телеметрии на это время останавливается.
+         * Глубокое сканирование: служба 21 (ReadDataByLocalIdentifier), идентификаторы 01…FF, у двигателя, коробки,
+         * приборов и климата. Только чтение. Опрос телеметрии на это время останавливается.
          */
         suspend fun deepScan() {
             val started = System.currentTimeMillis()
-            if (!isCan) {
+            if (!isCan11) {
                 _connection.update {
-                    it.copy(deepScan = DeepScanResult(emptyList(), 0, 0, started, listOf("Протокол не CAN — сканирование не поддерживается")))
+                    it.copy(deepScan = DeepScanResult(emptyList(), 0, 0, started, listOf("Протокол не CAN 11 бит — сканирование не поддерживается")))
                 }
                 return
             }
@@ -309,34 +316,46 @@ class ObdTelemetrySource(
             val notes = mutableListOf<String>()
             var rejected = 0
             var silent = 0
-            val total = DEEP_SCAN_HEADERS.size * 0xFF
-            try {
-                for ((h, header) in DEEP_SCAN_HEADERS.withIndex()) {
-                    send("ATSH$header")
+            val total = DEEP_SCAN_BLOCKS.size * 0xFF
+            for ((b, block) in DEEP_SCAN_BLOCKS.withIndex()) {
+                selectBlock(block.header, block.receive)
+                try {
                     var notSupported = 0
+                    var answered = false
                     for (id in 0x01..0xFF) {
-                        val done = h * 0xFF + id
-                        if (id % 8 == 1) status(ConnectionState.CONNECTED, "Глубокое сканирование: блок $header, ${done * 100 / total} %")
+                        val done = b * 0xFF + id
+                        if (id % 8 == 1) status(ConnectionState.CONNECTED, "Глубокое сканирование: ${block.title} (${block.header}), ${done * 100 / total} %")
                         val command = String.format(Locale.US, "21%02X", id)
                         val r = elm.send(command, PROBE_TIMEOUT_MS)
                         val messages = if (r.ok) ObdParser.messages(r.lines) else emptyList()
                         val positive = messages.firstOrNull { it.size >= 2 && it[0] == 0x61 && it[1] == id }
                         when {
-                            positive != null -> entries += DeepScanEntry(header, command, ObdParser.toHex(positive.copyOfRange(2, positive.size)))
+                            positive != null -> {
+                                answered = true
+                                entries += DeepScanEntry(block.header, command, ObdParser.toHex(positive.copyOfRange(2, positive.size)))
+                            }
                             messages.any { it.size >= 3 && it[0] == 0x7F && it[1] == 0x21 } -> {
+                                answered = true
                                 rejected++
                                 // 7F 21 11 — служба не поддерживается блоком вовсе: дальше спрашивать бессмысленно
                                 if (messages.any { it.size >= 3 && it[0] == 0x7F && it[2] == 0x11 } && ++notSupported >= 3) {
-                                    notes += "Блок $header не поддерживает службу 21"
+                                    notes += "Блок ${block.header} (${block.title}) не поддерживает службу 21"
                                     break
                                 }
                             }
-                            else -> silent++
+                            else -> {
+                                silent++
+                                // Блок, который молчит на первые запросы, на этой машине по этому адресу не отвечает
+                                if (!answered && id >= DEEP_SCAN_SILENT_LIMIT) {
+                                    notes += "Блок ${block.header} (${block.title}) не отвечает — пропущен"
+                                    break
+                                }
+                            }
                         }
                     }
+                } finally {
+                    restoreBlock(block.receive)
                 }
-            } finally {
-                send("ATSH7DF") // функциональный адрес «всем ЭБУ»
             }
             notes += "Длительность ${(System.currentTimeMillis() - started) / 1000} с"
             _connection.update {
@@ -345,6 +364,38 @@ class ObdTelemetrySource(
                     message = "Подключено",
                     deepScan = DeepScanResult(entries, rejected, silent, System.currentTimeMillis(), notes),
                     log = logSnapshot(),
+                )
+            }
+        }
+
+        /**
+         * Команды производителя из профиля автомобиля (топливо с приборов, температура вариатора и салона).
+         * Сырой ответ попадает в отчёт — по нему видно, отвечает ли блок и какой байт за что.
+         */
+        private suspend fun manufacturerProbes(): List<SensorProbe> {
+            if (!isCan11) return emptyList()
+            return profile().manufacturerCommands.map { p ->
+                val read = readExtended(p, PROBE_TIMEOUT_MS)
+                if (read.value != null) {
+                    extendedDisabled -= p.label
+                    extendedFailures -= p.label
+                }
+                val messages = if (read.response.ok) ObdParser.messages(read.response.lines) else emptyList()
+                val verdict = when {
+                    read.value != null -> ProbeVerdict.OK
+                    read.data != null -> ProbeVerdict.SUSPICIOUS
+                    messages.any { it.size >= 2 && it[0] == 0x7F } -> ProbeVerdict.NOT_SUPPORTED
+                    read.response.isNoData -> ProbeVerdict.NO_DATA
+                    else -> ProbeVerdict.ERROR
+                }
+                SensorProbe(
+                    name = p.name,
+                    command = p.label,
+                    declared = null,
+                    response = read.response.error ?: read.response.lines.joinToString(" | "),
+                    decoded = read.value?.let(p::format),
+                    verdict = verdict,
+                    note = if (verdict == ProbeVerdict.SUSPICIOUS) "байт вне ожидаемого диапазона; ${p.source}" else p.source,
                 )
             }
         }
@@ -409,8 +460,16 @@ class ObdTelemetrySource(
                     checkEngineOn = monitor?.milOn ?: t.checkEngineOn,
                     dtcCount = monitor?.dtcCount ?: t.dtcCount,
                     readiness = monitor?.readiness ?: t.readiness,
-                    atfTemp = profile().atfTempCommand?.let { extended(it) }?.roundToInt() ?: t.atfTemp,
-                    cabinTemp = profile().cabinTempCommand?.let { extended(it) } ?: t.cabinTemp,
+                )
+            }
+            // Команды производителя — раз в 20 циклов и не в первом: переключение на блок занимает до девяти команд,
+            // а показания после подключения должны появиться сразу
+            if (c % 20 == MANUFACTURER_CYCLE) {
+                val p = profile()
+                t = t.copy(
+                    fuelLevelPercent = p.fuelLevelCommand?.takeIf { !isSupported(Pid.FUEL_LEVEL) }?.let { extended(it) } ?: t.fuelLevelPercent,
+                    atfTemp = p.atfTempCommand?.let { extended(it) }?.roundToInt() ?: t.atfTemp,
+                    cabinTemp = p.cabinTempCommand?.let { extended(it) } ?: t.cabinTemp,
                 )
             }
             if (c % 60 == 0L && cylinderMids.isNotEmpty()) {
@@ -478,19 +537,64 @@ class ObdTelemetrySource(
             return counts
         }
 
-        /** Команда производителя по CAN 11 бит: временно меняем заголовок на адрес нужного блока. */
+        private val isCan11: Boolean get() = protocol == 6 || protocol == 8
+
+        /** Команда производителя по расписанию опроса: после трёх неудач подряд больше не отправляется. */
         private suspend fun extended(p: ExtendedPid): Double? {
-            if (protocol != 6 && protocol != 8) return null
-            send("ATSH${p.header}")
-            return try {
-                val r = elm.send(p.command)
-                val data = if (r.ok) ObdParser.responseData(r.lines, ObdParser.hexBytes(p.command)) else null
-                val value = data?.let { runCatching { p.decode(it) }.getOrNull() }
-                record(r, value?.let { String.format(Locale.US, "%.1f", it) })
-                value
-            } finally {
-                send("ATSH7DF") // функциональный адрес «всем ЭБУ»
+            if (!isCan11 || p.label in extendedDisabled) return null
+            val value = readExtended(p).value
+            if (value != null) {
+                extendedFailures -= p.label
+            } else if (extendedFailures.merge(p.label, 1, Int::plus)!! >= EXTENDED_MAX_FAILURES) {
+                extendedDisabled += p.label
+                record(ElmResponse(p.command, "", emptyList(), "нет значения"), "${p.name}: блок ${p.header} не дал значения $EXTENDED_MAX_FAILURES раза подряд — больше не спрашиваем")
             }
+            return value
+        }
+
+        /** Команда производителя: временно переключаемся на блок, читаем и возвращаем адаптер к опросу всех ЭБУ. */
+        private suspend fun readExtended(p: ExtendedPid, timeoutMs: Long = Elm327.DEFAULT_TIMEOUT_MS): ExtendedRead {
+            selectBlock(p.header, p.receive)
+            try {
+                val r = elm.send(p.command, timeoutMs)
+                val data = if (r.ok) ObdParser.responseData(r.lines, ObdParser.hexBytes(p.command)) else null
+                val value = data?.let(p::read)
+                record(
+                    r,
+                    when {
+                        value != null -> "${p.header} · ${p.name}: ${p.format(value)}"
+                        data != null -> "${p.header} · ${p.name}: значение вне диапазона"
+                        else -> "${p.header} · ${p.name}"
+                    },
+                )
+                return ExtendedRead(r, data, value)
+            } finally {
+                restoreBlock(p.receive)
+            }
+        }
+
+        /**
+         * Адрес блока. Если блок отвечает не с «адреса запроса + 8» (приборы Mitsubishi: 6A0 → 514), адаптеру нужны
+         * фильтр приёма — иначе он не покажет ответ, — и свой flow control для многокадровых ответов.
+         */
+        private suspend fun selectBlock(header: String, receive: String?) {
+            send("ATSH$header")
+            if (receive == null) return
+            for (cmd in listOf("ATFCSH$header", "ATFCSD$FLOW_CONTROL_DATA", "ATFCSM1", "ATCRA$receive")) adapterSetting(cmd)
+        }
+
+        private suspend fun restoreBlock(receive: String?) {
+            if (receive != null) {
+                adapterSetting("ATFCSM0") // flow control снова автоматический
+                adapterSetting("ATAR")    // фильтр приёма — по заголовку, как при подключении
+            }
+            send("ATSH7DF") // функциональный адрес «всем ЭБУ»
+        }
+
+        /** Настройка адаптера: в журнал — только если он её не принял. */
+        private suspend fun adapterSetting(command: String) {
+            val r = elm.send(command)
+            if (!r.ok) record(r, "адаптер не принял команду")
         }
 
         private fun isSupported(pid: Int): Boolean =
@@ -534,6 +638,12 @@ class ObdTelemetrySource(
         val format: (Double) -> String = { String.format(Locale.US, "%.${digits}f", it) + unit }
     }
 
+    /** Ответ на команду производителя: строки адаптера, данные после эха запроса и значение (null — нет или не то). */
+    private class ExtendedRead(val response: ElmResponse, val data: IntArray?, val value: Double?)
+
+    /** Блок для глубокого сканирования; [receive] — адрес ответа, если он не «запрос + 8». */
+    private class ScanBlock(val header: String, val receive: String?, val title: String)
+
     companion object {
         private const val LOG_SIZE = 80
         private const val PROBE_TIMEOUT_MS = 3_000L
@@ -547,8 +657,27 @@ class ObdTelemetrySource(
             Pid.LONG_TERM_FUEL_TRIM, Pid.MAF, Pid.FUEL_RATE, Pid.FUEL_LEVEL, Pid.INTAKE_AIR_TEMP, Pid.AMBIENT_AIR_TEMP,
         )
 
-        /** Двигатель и коробка: на CAN 11 бит отвечают с 7E8 и 7E9 (так в отчёте с Outlander XL). */
-        private val DEEP_SCAN_HEADERS = listOf("7E0", "7E1")
+        /** В каком цикле из 20 читаются команды производителя (не в нулевом — он должен быть быстрым). */
+        private const val MANUFACTURER_CYCLE = 10L
+
+        private const val EXTENDED_MAX_FAILURES = 3
+
+        /** Flow control для блоков с нестандартным адресом ответа: 30 — «продолжай», по 8 кадров, 10 мс между кадрами. */
+        private const val FLOW_CONTROL_DATA = "30080A"
+
+        /** Сколько первых идентификаторов блок может промолчать, прежде чем сканирование его пропустит. */
+        private const val DEEP_SCAN_SILENT_LIMIT = 8
+
+        /**
+         * Двигатель и коробка отвечают с 7E8 и 7E9 (так в отчёте с Outlander XL). Приборы и климат Mitsubishi —
+         * с 514 и 511: у них уровень топлива и температура салона.
+         */
+        private val DEEP_SCAN_BLOCKS = listOf(
+            ScanBlock("7E0", null, "двигатель"),
+            ScanBlock("7E1", null, "коробка"),
+            ScanBlock("6A0", "514", "приборы"),
+            ScanBlock("688", "511", "климат"),
+        )
 
         private fun t(d: IntArray) = ObdDecode.temperature(d)?.toDouble()
 

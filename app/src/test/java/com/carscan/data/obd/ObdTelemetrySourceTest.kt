@@ -3,6 +3,7 @@ package com.carscan.data.obd
 import com.carscan.data.ConnectionState
 import com.carscan.data.ExtendedPid
 import com.carscan.data.FuelType
+import com.carscan.data.ManufacturerPids
 import com.carscan.data.ProbeVerdict
 import com.carscan.data.VehicleProfile
 import kotlinx.coroutines.flow.first
@@ -26,13 +27,32 @@ import java.util.Locale
  * Запрос режима 01 с числом ответов («010C2») отвечает как «010C»; [countSuffix] = false — клон, который
  * число ответов не понимает и отвечает «?».
  */
-private class FakeElm327(private val car: Map<String, String>, private val countSuffix: Boolean = true) : ObdTransport {
+/**
+ * Эмулятор ELM327. Ответы — по команде («2103») или по адресу блока и команде («6A0:21A3»).
+ * [blocks] — какие адреса отвечают (null — любые). [receive] — блоки с нестандартным адресом ответа (6A0 → 514):
+ * их ответ виден, только если адаптеру задан фильтр приёма AT CRA, как у настоящего ELM327.
+ */
+private class FakeElm327(
+    private val car: Map<String, String>,
+    private val countSuffix: Boolean = true,
+    private val blocks: Set<String>? = null,
+    private val receive: Map<String, String> = emptyMap(),
+) : ObdTransport {
     // Пишет поток опроса, читает тест — список должен быть потокобезопасным
     val commands: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
     private val pending = ArrayDeque<Byte>()
     private val lock = Any()
     private var echo = true
+    private var header = "7DF"
+    private var receiveFilter: String? = null
     var closed = false
+
+    private fun answer(cmd: String, key: String): String? {
+        if (cmd.startsWith("AT")) return null
+        if (blocks != null && header != "7DF" && header !in blocks) return "NO DATA"
+        if (header in receive && receiveFilter != receive[header]) return "NO DATA"
+        return car["$header:$key"]
+    }
 
     override val output = object : OutputStream() {
         private val line = StringBuilder()
@@ -45,11 +65,14 @@ private class FakeElm327(private val car: Map<String, String>, private val count
             line.clear()
             commands += cmd
             if (cmd == "ATE0") echo = false
+            if (cmd.startsWith("ATSH")) header = cmd.removePrefix("ATSH")
+            if (cmd.startsWith("ATCRA")) receiveFilter = cmd.removePrefix("ATCRA").ifEmpty { null }
+            if (cmd == "ATAR") receiveFilter = null
             val withCount = MODE01_WITH_COUNT.matches(cmd)
             val key = if (withCount) cmd.dropLast(1) else cmd
             val reply = when {
                 withCount && !countSuffix -> "?"
-                else -> car[key] ?: if (cmd.startsWith("AT")) "OK" else "NO DATA"
+                else -> answer(cmd, key) ?: car[key] ?: if (cmd.startsWith("AT")) "OK" else "NO DATA"
             }
             val text = (if (echo) "$cmd\r" else "") + reply.replace("\n", "\r") + "\r\r>"
             synchronized(lock) { text.toByteArray(Charsets.US_ASCII).forEach { pending.addLast(it) } }
@@ -208,10 +231,10 @@ class ObdTelemetrySourceTest {
 
     @Test
     fun `команда производителя для температуры АКПП`() = runBlocking {
-        val car = gasolineCar + mapOf("221940" to "62 19 40 7D") // 0x7D - 40 = 85 °C
-        val profile = VehicleProfile(atfTempCommand = ExtendedPid("7E1", "221940") { it[0] - 40.0 })
+        val car = gasolineCar + mapOf("7E1:221940" to "62 19 40 7D") // 0x7D - 40 = 85 °C
+        val profile = VehicleProfile(atfTempCommand = ExtendedPid("Темп. АКПП", "7E1", "221940") { it[0] - 40.0 })
         val elm = FakeElm327(car)
-        val t = ObdTelemetrySource({ profile }) { elm }.samples().first()
+        val t = withTimeout(10_000) { ObdTelemetrySource({ profile }) { elm }.samples().first { it.atfTemp != null } }
         assertEquals(85, t.atfTemp)
         val i = elm.commands.indexOf("221940")
         assertEquals("ATSH7E1", elm.commands[i - 1])
@@ -303,19 +326,98 @@ class ObdTelemetrySourceTest {
             "2103" to "013\n0: 61 03 01 02 03 04\n1: 05 06 07 08 09 0A 0B", // многокадровый ответ
             "2102" to "7F 21 12", // нет такого идентификатора
         )
-        val elm = FakeElm327(car)
+        // Отвечают двигатель и коробка, приборов и климата по этим адресам нет
+        val elm = FakeElm327(car, blocks = setOf("7E0", "7E1"))
         val source = ObdTelemetrySource({ VehicleProfile() }) { elm }
         source.requestDeepScan()
         withTimeout(10_000) { source.samples().first { source.connection.value.deepScan != null } }
         val scan = source.connection.value.deepScan!!
-        // Эмулятор отвечает одинаково на любой заголовок — поэтому по записи от каждого блока
+        // Эмулятор отвечает одинаково обоим блокам — поэтому по записи от каждого
         assertEquals(
             listOf("7E0 2101 AA BB CC", "7E0 2103 01 02 03 04 05 06 07 08 09 0A 0B", "7E1 2101 AA BB CC", "7E1 2103 01 02 03 04 05 06 07 08 09 0A 0B"),
             scan.entries.map { "${it.header} ${it.command} ${it.data}" },
         )
         assertEquals(2, scan.rejected)
-        val i = elm.commands.indexOf("21FF")
-        assertTrue("после сканирования снова функциональный адрес", elm.commands.subList(i, elm.commands.size).contains("ATSH7DF"))
+        assertTrue(scan.notes.contains("Блок 6A0 (приборы) не отвечает — пропущен"))
+        assertTrue(scan.notes.contains("Блок 688 (климат) не отвечает — пропущен"))
+        assertFalse("молчащий блок не опрашивается до конца", "2109" in elm.commands.subList(elm.commands.indexOf("ATSH6A0"), elm.commands.size))
+        assertTrue("фильтр приёма для приборов", "ATCRA514" in elm.commands)
+        val last = elm.commands.lastIndexOf("ATSH688")
+        assertTrue("после сканирования снова функциональный адрес", elm.commands.subList(last, elm.commands.size).contains("ATSH7DF"))
+    }
+
+    /** Outlander XL с ответами блоков Mitsubishi: приборы (6A0 → 514), климат (688 → 511), вариатор (7E1 → 7E9). */
+    private val outlanderBlocks = mapOf(
+        "6A0:21A3" to "61 A3 01 00 4C 00 00", // C = 0x4C = 76 → 60 %
+        "688:2110" to "61 10 9A 80 00 00 B7", // A = 0x9A = 154 → 22.5 °C
+        // N — 14-й байт после «61 03»: 0x85 = 133 → 65 °C
+        "7E1:2103" to "014\n0: 61 03 00 00 00 00\n1: 00 00 00 00 00 00 00\n2: 00 00 85 00 00 00 00",
+    )
+    private val mitsubishiReceive = mapOf("6A0" to "514", "688" to "511")
+
+    private val outlanderProfile = VehicleProfile(
+        make = "Mitsubishi",
+        model = "Outlander",
+        fuelLevelCommand = ManufacturerPids.MMC_FUEL_LEVEL,
+        cabinTempCommand = ManufacturerPids.MMC_CABIN_TEMP,
+        atfTempCommand = ManufacturerPids.MMC_CVT_TEMP,
+    )
+
+    @Test
+    fun `топливо с приборов, салон и вариатор Mitsubishi`() = runBlocking {
+        val elm = FakeElm327(outlander + outlanderBlocks, receive = mitsubishiReceive)
+        val source = ObdTelemetrySource({ outlanderProfile }) { elm }
+        val t = withTimeout(10_000) {
+            source.samples().first { it.fuelLevelPercent != null && it.cabinTemp != null && it.atfTemp != null }
+        }
+        assertEquals(60.0, t.fuelLevelPercent!!, 1e-9)
+        assertEquals(22.5, t.cabinTemp!!, 1e-9)
+        assertEquals(65, t.atfTemp)
+
+        // Приборы отвечают с 514: адаптеру задан фильтр приёма и flow control, а после — всё вернули
+        val i = elm.commands.indexOf("21A3")
+        assertEquals(listOf("ATSH6A0", "ATFCSH6A0", "ATFCSD30080A", "ATFCSM1", "ATCRA514"), elm.commands.subList(i - 5, i))
+        assertEquals(listOf("ATFCSM0", "ATAR", "ATSH7DF"), elm.commands.subList(i + 1, i + 4))
+        // У вариатора адрес ответа стандартный (7E9) — только заголовок
+        val j = elm.commands.indexOf("2103")
+        assertEquals("ATSH7E1", elm.commands[j - 1])
+        assertEquals("ATSH7DF", elm.commands[j + 1])
+
+        val probes = source.connection.value.selfTest.associateBy { it.command }
+        assertEquals(ProbeVerdict.OK, probes.getValue("6A0 21A3").verdict)
+        assertEquals("60 %", probes.getValue("6A0 21A3").decoded)
+        assertEquals("22.5 °C", probes.getValue("688 2110").decoded)
+        assertEquals("65 °C", probes.getValue("7E1 2103").decoded)
+    }
+
+    @Test
+    fun `блок производителя не отвечает - после трёх попыток не спрашиваем`() = runBlocking {
+        val elm = FakeElm327(outlander + outlanderBlocks - "688:2110", receive = mitsubishiReceive)
+        val source = ObdTelemetrySource({ outlanderProfile }) { elm }
+        source.samples().take(75).toList()
+        // Проверка датчиков (1 раз) и опрос в циклах 10, 30, 50; в цикле 70 — уже нет
+        assertEquals(4, elm.commands.count { it == "2110" })
+        assertEquals(5, elm.commands.count { it == "21A3" })
+        val probe = source.connection.value.selfTest.single { it.command == "688 2110" }
+        assertEquals(ProbeVerdict.NO_DATA, probe.verdict)
+    }
+
+    @Test
+    fun `уровень топлива с приборов не нужен, если ЭБУ отдаёт PID 2F`() = runBlocking {
+        val elm = FakeElm327(gasolineCar + outlanderBlocks, receive = mitsubishiReceive)
+        val t = ObdTelemetrySource({ outlanderProfile }) { elm }.samples().take(12).toList().last()
+        assertEquals(50.2, t.fuelLevelPercent!!, 0.1)
+        assertEquals("только проверка датчиков", 1, elm.commands.count { it == "21A3" })
+    }
+
+    @Test
+    fun `адаптер без фильтра приёма не видит ответ приборов`() = runBlocking {
+        // Без AT CRA настоящий ELM327 не показывает кадры с 514 — так и эмулятор
+        val elm = FakeElm327(outlander + outlanderBlocks, receive = mitsubishiReceive)
+        val profile = outlanderProfile.copy(fuelLevelCommand = ManufacturerPids.MMC_FUEL_LEVEL.copy(receive = null))
+        val source = ObdTelemetrySource({ profile }) { elm }
+        source.samples().take(12).toList()
+        assertEquals(ProbeVerdict.NO_DATA, source.connection.value.selfTest.single { it.command == "6A0 21A3" }.verdict)
     }
 
     /**
