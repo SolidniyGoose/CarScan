@@ -6,7 +6,11 @@ import com.carscan.data.FuelType
 import com.carscan.data.ManufacturerPids
 import com.carscan.data.ProbeVerdict
 import com.carscan.data.VehicleProfile
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -111,6 +115,13 @@ private class FakeProtocolMemory(var stored: Int?) : ProtocolMemory {
     }
 }
 
+/**
+ * Снимки «шаг в шаг»: опрос ждёт, пока тест заберёт снимок. Без этого поток опроса (flowOn с буфером на 64 снимка)
+ * на медленной машине, как раннер CI, убегает вперёд на десятки циклов: журнал (80 записей) вытесняет ранние
+ * записи, а счётчики команд растут. Тесты, которые считают команды или смотрят журнал после take(N), — через него.
+ */
+private fun ObdTelemetrySource.lockstep() = samples().buffer(Channel.RENDEZVOUS)
+
 private fun mask(base: Int, vararg pids: Int): String {
     val bytes = IntArray(4)
     for (pid in pids) {
@@ -188,7 +199,7 @@ class ObdTelemetrySourceTest {
     @Test
     fun `неподдерживаемые PID не запрашиваются`() = runBlocking {
         val elm = FakeElm327(gasolineCar)
-        ObdTelemetrySource({ VehicleProfile() }) { elm }.samples().take(25).toList()
+        ObdTelemetrySource({ VehicleProfile() }) { elm }.lockstep().take(25).toList()
         assertFalse("015E не заявлен — не спрашиваем", "015E" in elm.pollCommands)
         assertFalse("0142 не нужен, AT RV работает", "0142" in elm.pollCommands)
         assertEquals("ATE0 до первого запроса данных", "ATE0", elm.commands[1])
@@ -257,7 +268,7 @@ class ObdTelemetrySourceTest {
     @Test
     fun `журнал хранит сырые ответы и расшифровку`() = runBlocking {
         val source = ObdTelemetrySource({ VehicleProfile() }) { FakeElm327(gasolineCar) }
-        source.samples().take(2).toList()
+        source.lockstep().take(2).toList()
         // «1» в конце — число ожидаемых ответов: 0C заявил один блок
         val rpm = source.connection.value.log.last { it.command == "010C1" }
         assertEquals("410C1AF8", rpm.response.replace(" ", ""))
@@ -270,7 +281,7 @@ class ObdTelemetrySourceTest {
         val car = gasolineCar + mapOf("0120" to "41 20 " + mask(0x20, 0x40))
         val elm = FakeElm327(car)
         val source = ObdTelemetrySource({ VehicleProfile() }) { elm }
-        val t = source.samples().take(21).toList().last()
+        val t = source.lockstep().take(21).toList().last()
 
         val probes = source.connection.value.selfTest.associateBy { it.command }
         assertEquals(ProbeVerdict.UNDECLARED, probes.getValue("012F").verdict)
@@ -394,7 +405,7 @@ class ObdTelemetrySourceTest {
     fun `блок производителя не отвечает - после трёх попыток не спрашиваем`() = runBlocking {
         val elm = FakeElm327(outlander + outlanderBlocks - "688:2110", receive = mitsubishiReceive)
         val source = ObdTelemetrySource({ outlanderProfile }) { elm }
-        source.samples().take(75).toList()
+        source.lockstep().onEach { delay(2) }.take(75).toList() // медленный сбор не добавляет лишних циклов
         // Проверка датчиков (1 раз) и опрос в циклах 10, 30, 50; в цикле 70 — уже нет
         assertEquals(4, elm.commands.count { it == "2110" })
         assertEquals(5, elm.commands.count { it == "21A3" })
@@ -405,7 +416,7 @@ class ObdTelemetrySourceTest {
     @Test
     fun `уровень топлива с приборов не нужен, если ЭБУ отдаёт PID 2F`() = runBlocking {
         val elm = FakeElm327(gasolineCar + outlanderBlocks, receive = mitsubishiReceive)
-        val t = ObdTelemetrySource({ outlanderProfile }) { elm }.samples().take(12).toList().last()
+        val t = ObdTelemetrySource({ outlanderProfile }) { elm }.lockstep().take(12).toList().last()
         assertEquals(50.2, t.fuelLevelPercent!!, 0.1)
         assertEquals("только проверка датчиков", 1, elm.commands.count { it == "21A3" })
     }
@@ -416,7 +427,7 @@ class ObdTelemetrySourceTest {
         val elm = FakeElm327(outlander + outlanderBlocks, receive = mitsubishiReceive)
         val profile = outlanderProfile.copy(fuelLevelCommand = ManufacturerPids.MMC_FUEL_LEVEL.copy(receive = null))
         val source = ObdTelemetrySource({ profile }) { elm }
-        source.samples().take(12).toList()
+        source.lockstep().take(12).toList()
         assertEquals(ProbeVerdict.NO_DATA, source.connection.value.selfTest.single { it.command == "6A0 21A3" }.verdict)
     }
 
@@ -466,7 +477,8 @@ class ObdTelemetrySourceTest {
     fun `адаптер не понимает число ответов - опрос продолжается без него`() = runBlocking {
         val elm = FakeElm327(gasolineCar, countSuffix = false)
         val source = ObdTelemetrySource({ VehicleProfile() }) { elm }
-        val t = source.samples().take(2).toList().last()
+        // Медленный сбор, как на CI: без lockstep() запись из первого цикла вытесняется из журнала
+        val t = source.lockstep().onEach { delay(30) }.take(2).toList().last()
         assertEquals(1726, t.rpm)
         assertEquals("число ответов пробуем один раз", 1, elm.commands.count { it.length == 5 && it.startsWith("01") })
         assertTrue("010C" in elm.commands)
@@ -475,7 +487,7 @@ class ObdTelemetrySourceTest {
 
     @Test
     fun `все заявленные PID читаются по кругу для списка «Все датчики»`() = runBlocking {
-        val t = ObdTelemetrySource({ VehicleProfile() }) { FakeElm327(outlander) }.samples().take(25).toList().last()
+        val t = ObdTelemetrySource({ VehicleProfile() }) { FakeElm327(outlander) }.lockstep().take(25).toList().last()
         assertEquals(98.0, t.obdValues.getValue(0x33), 1e-9)      // атм. давление
         assertEquals(14.173, t.obdValues.getValue(0x42), 1e-9)    // напряжение ЭБУ
         assertEquals(6.0, t.obdValues.getValue(0x0E), 1e-9)       // угол опережения
@@ -501,7 +513,7 @@ class ObdTelemetrySourceTest {
     @Test
     fun `проверка датчиков идёт после первых показаний`() = runBlocking {
         val elm = FakeElm327(gasolineCar)
-        withTimeout(10_000) { ObdTelemetrySource({ VehicleProfile() }) { elm }.samples().take(5).toList() }
+        withTimeout(10_000) { ObdTelemetrySource({ VehicleProfile() }) { elm }.lockstep().take(5).toList() }
         val firstPoll = elm.commands.indexOf("010C1")
         val selfTest = elm.commands.indexOf("ATH1")
         assertTrue("опрос $firstPoll раньше проверки $selfTest", firstPoll in 0 until selfTest)

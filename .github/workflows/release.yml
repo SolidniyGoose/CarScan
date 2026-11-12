@@ -55,7 +55,10 @@ jobs:
           grep -A12 "What went wrong" build.log | head -30 | tr '\n' ' ' | sed 's/^/::error::/' || true
           echo
           for f in app/build/test-results/testDebugUnitTest/*.xml; do
-            grep -q "<failure" "$f" 2>/dev/null && grep -A3 "<failure" "$f" | head -4 | tr '\n' ' ' | sed "s|^|::error::$(basename "$f"): |" && echo
+            grep -q "<failure" "$f" 2>/dev/null || continue
+            # Имена всех упавших тестов (строка <testcase> прямо перед <failure>) и начало первой ошибки
+            echo "::error::$(basename "$f"): упали $(grep -B1 "<failure" "$f" | grep -o 'testcase name="[^"]*"' | sed 's/testcase name=//' | tr '\n' ' ')"
+            grep -A3 "<failure" "$f" | head -4 | tr '\n' ' ' | sed "s|^|::error::$(basename "$f"): |" && echo
           done || true
           grep -E "^e: " build.log | head -10 | sed 's/^/::error::/' || true
 
