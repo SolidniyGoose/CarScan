@@ -3,6 +3,7 @@ package com.carscan.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.carscan.bluetooth.BluetoothManager
+import com.carscan.bluetooth.BluetoothOffException
 import com.carscan.bluetooth.PairedDevice
 import com.carscan.data.AppRelease
 import com.carscan.data.AmbientTempFilter
@@ -176,6 +177,12 @@ class MainViewModel(
     private val _bluetoothPermissionRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val bluetoothPermissionRequests: SharedFlow<Unit> = _bluetoothPermissionRequests.asSharedFlow()
 
+    /** Просьба к Activity показать системное окно «Включить Bluetooth?» — когда сами включить не смогли (Android 13+). */
+    private val _bluetoothEnableRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val bluetoothEnableRequests: SharedFlow<Unit> = _bluetoothEnableRequests.asSharedFlow()
+    /** Окно — один раз за включение потока, а не на каждой попытке переподключения. */
+    private var bluetoothEnableAsked = false
+
     private val _shareRequests = MutableSharedFlow<ShareRequest>(extraBufferCapacity = 1)
     val shareRequests: SharedFlow<ShareRequest> = _shareRequests.asSharedFlow()
     private var reportJob: Job? = null
@@ -290,6 +297,7 @@ class MainViewModel(
     private fun startStreaming() {
         if (streamJob?.isActive == true) return
         val source = activeSource
+        bluetoothEnableAsked = false
         _uiState.update { it.copy(streaming = true) }
         streamJob = viewModelScope.launch {
             launch {
@@ -318,6 +326,12 @@ class MainViewModel(
                     }
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: BluetoothOffException) {
+                    // Текст ошибки уже в connection; если система ждёт согласия пользователя — спрашиваем в окне
+                    if (e.canAskUser && !bluetoothEnableAsked) {
+                        bluetoothEnableAsked = true
+                        _bluetoothEnableRequests.tryEmit(Unit)
+                    }
                 } catch (e: Exception) {
                     // Текст ошибки источник уже положил в connection
                 }
@@ -488,15 +502,33 @@ class MainViewModel(
             if (askPermission) _bluetoothPermissionRequests.tryEmit(Unit)
             return
         }
-        val result = runCatching { bluetooth.pairedDevices() }
-        _uiState.update {
-            it.copy(pairedDevices = result.getOrDefault(emptyList()), bluetoothIssue = result.exceptionOrNull()?.message)
+        viewModelScope.launch {
+            val result = try {
+                bluetooth.ensureEnabled() // выключенный Bluetooth включаем — иначе список адаптеров пуст
+                Result.success(bluetooth.pairedDevices())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            _uiState.update {
+                it.copy(pairedDevices = result.getOrDefault(emptyList()), bluetoothIssue = result.exceptionOrNull()?.message)
+            }
+            if (askPermission && (result.exceptionOrNull() as? BluetoothOffException)?.canAskUser == true) {
+                _bluetoothEnableRequests.tryEmit(Unit)
+            }
         }
     }
 
     fun onBluetoothPermissionResult(granted: Boolean) {
         refreshPairedDevices(askPermission = false)
         if (granted) restartStreaming()
+    }
+
+    /** Ответ из системного окна «Включить Bluetooth?»: включили — подключаемся сразу, не дожидаясь повтора. */
+    fun onBluetoothEnableResult(enabled: Boolean) {
+        refreshPairedDevices(askPermission = false)
+        if (enabled) restartStreaming()
     }
 
     // ---------- Погода ----------

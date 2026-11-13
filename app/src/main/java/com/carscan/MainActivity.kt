@@ -1,6 +1,8 @@
 package com.carscan
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -46,6 +48,11 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { granted -> viewModel.onBluetoothPermissionResult(granted) }
 
+    // Системное окно «Включить Bluetooth?» — когда сами включить не смогли (Android 13+ не даёт делать это без окна)
+    private val bluetoothEnable = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result -> viewModel.onBluetoothEnableResult(result.resultCode == RESULT_OK) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enterImmersiveMode()
@@ -59,6 +66,10 @@ class MainActivity : ComponentActivity() {
                     bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
                 }
             }
+        }
+
+        lifecycleScope.launch {
+            viewModel.bluetoothEnableRequests.collect { requestBluetoothEnable() }
         }
 
         // Скачанное обновление → системный установщик (нужно разрешение «Установка неизвестных приложений»)
@@ -106,6 +117,15 @@ class MainActivity : ComponentActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+    }
+
+    /**
+     * Окно запрашивается, только когда разрешение «Устройства поблизости» уже есть (без него Bluetooth не включить).
+     * В прошивке магнитолы такого окна может не быть — тогда остаётся сообщение об ошибке на экране.
+     */
+    @SuppressLint("MissingPermission")
+    private fun requestBluetoothEnable() {
+        runCatching { bluetoothEnable.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) }
     }
 
     private fun requestLocationIfNeeded() {

@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import com.carscan.data.obd.ObdException
 import com.carscan.data.obd.ObdTransport
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.io.InputStream
@@ -54,8 +55,31 @@ class BluetoothManager(
             .sortedWith(compareByDescending<PairedDevice> { it.looksLikeObd }.thenBy { it.name })
     }
 
-    /** Открывает SPP-канал к выбранному адаптеру. */
+    private val radio = object : BluetoothRadio {
+        override val isOn: Boolean get() = bluetoothAdapter?.isEnabled == true
+
+        // До Android 13 включение без окна разрешено (BLUETOOTH_ADMIN, на 12 — ещё BLUETOOTH_CONNECT).
+        // На 13+ при targetSdk ≥ 33 система всегда отвечает false — тогда просим через системное окно.
+        @Suppress("DEPRECATION")
+        override fun requestEnable(): Boolean = bluetoothAdapter?.enable() == true
+    }
+
+    /**
+     * Включает Bluetooth, если он выключен. После включения стеку нужно немного времени,
+     * иначе первое подключение к адаптеру срывается.
+     * @throws BluetoothOffException если включить не удалось
+     */
+    suspend fun ensureEnabled() {
+        if (bluetoothAdapter == null) throw ObdException("На устройстве нет Bluetooth")
+        if (!hasConnectPermission()) throw ObdException("Нет разрешения «Устройства поблизости» для Bluetooth")
+        val result = BluetoothPower.ensureOn(radio)
+        BluetoothPower.failure(result)?.let { throw it }
+        if (result == PowerResult.TURNED_ON) delay(SETTLE_AFTER_ENABLE_MS)
+    }
+
+    /** Открывает SPP-канал к выбранному адаптеру; выключенный Bluetooth сначала включает. */
     suspend fun openObdTransport(address: String?): ObdTransport {
+        ensureEnabled()
         val adapter = requireReadyAdapter()
         if (address == null) throw ObdException("Адаптер не выбран: «…» → Настройки → Адаптер ELM327")
         val device = try {
@@ -173,6 +197,7 @@ class BluetoothManager(
 
     private companion object {
         const val KEY_METHOD_PREFIX = "connect_method_"
+        const val SETTLE_AFTER_ENABLE_MS = 1_000L
     }
 
     private class SocketTransport(private val socket: BluetoothSocket) : ObdTransport {

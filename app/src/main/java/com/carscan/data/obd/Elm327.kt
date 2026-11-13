@@ -5,7 +5,7 @@ import java.io.Closeable
 import java.io.InputStream
 import java.io.OutputStream
 
-class ObdException(message: String, cause: Throwable? = null) : Exception(message, cause)
+open class ObdException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /** Канал до адаптера: Bluetooth SPP-сокет, а в тестах — эмулятор ELM327. */
 interface ObdTransport : Closeable {

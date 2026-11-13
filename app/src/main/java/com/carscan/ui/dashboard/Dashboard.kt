@@ -133,18 +133,24 @@ fun DashboardOverlay(
     }
 }
 
-/** Подменяет плотность так, чтобы эталонный макет занимал экран целиком (по меньшей из сторон). */
+/**
+ * Подменяет плотность так, чтобы эталонный макет занимал экран целиком (по меньшей из сторон).
+ * Шрифт — на [TEXT_SCALE] крупнее макета: на магнитоле его читают с расстояния вытянутой руки.
+ */
 @Composable
 private fun ScaledLayout(referenceWidth: Dp, referenceHeight: Dp, content: @Composable () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val scale = min(maxWidth / referenceWidth, maxHeight / referenceHeight).coerceIn(0.6f, 3f)
         val density = LocalDensity.current
         CompositionLocalProvider(
-            LocalDensity provides Density(density.density * scale, min(density.fontScale, 1.15f)),
+            LocalDensity provides Density(density.density * scale, min(density.fontScale, 1.15f) * TEXT_SCALE),
             content = content,
         )
     }
 }
+
+/** Насколько шрифт крупнее эталонного макета (все размеры текста в sp). */
+private const val TEXT_SCALE = 1.15f
 
 @Composable
 private fun LeftColumn(state: DashboardState, actions: DashboardActions, modifier: Modifier = Modifier) {
